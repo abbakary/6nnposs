@@ -316,10 +316,17 @@ def started_orders_dashboard(request):
             customer__full_name__icontains=search_query
         )
 
-    # Apply sorting
-    if sort_by in ['-started_at', 'started_at', 'plate_number', 'type']:
-        orders = orders.order_by(sort_by)
+    # Apply sorting (handle related fields properly)
+    if sort_by == 'plate_number':
+        orders = orders.order_by('vehicle__plate_number')
+    elif sort_by == 'type':
+        orders = orders.order_by('type')
+    elif sort_by == 'started_at':
+        orders = orders.order_by('started_at')
+    elif sort_by == '-started_at':
+        orders = orders.order_by('-started_at')
     else:
+        # Default: sort by newest first
         orders = orders.order_by('-started_at')
 
     # Group orders by plate number
