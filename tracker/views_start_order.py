@@ -310,10 +310,10 @@ def started_orders_dashboard(request):
 
     # Apply search filter
     if search_query:
+        from django.db.models import Q
         orders = orders.filter(
-            vehicle__plate_number__icontains=search_query
-        ) | orders.filter(
-            customer__full_name__icontains=search_query
+            Q(vehicle__plate_number__icontains=search_query) |
+            Q(customer__full_name__icontains=search_query)
         )
 
     # Apply sorting (handle related fields properly)
