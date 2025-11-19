@@ -4532,6 +4532,228 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   })();
 
+  // ============================================================================
+  // SUPPORTING DOCUMENTS SIGNING FUNCTIONALITY (only for completed orders)
+  // ============================================================================
+  (function() {
+    const supportingDocSelectors = document.querySelectorAll('.supporting-doc-selector');
+    const supportingDocSelectedInfo = document.getElementById('supportingDocSelectedInfo');
+    const supportingDocSelectedName = document.getElementById('supportingDocSelectedName');
+    const supportingDocAttachmentId = document.getElementById('supportingDocAttachmentId');
+    const supportingDocSignatureData = document.getElementById('supportingDocSignatureData');
+    const signSupportingDocBtn = document.getElementById('footerSignSupportingDoc');
+    const supportingDocSignaturePad = document.getElementById('supportingDocSignaturePad');
+    const supportingDocContainer = document.getElementById('supportingDocSignContainer');
+    const supportingDocPreviewHost = document.getElementById('supportingDocPreviewHost');
+    const clearSupportingDocSignBtn = document.getElementById('clearSupportingDocSignatureBtn');
+    const supportingDocSignaturePreviewSmall = document.getElementById('supportingDocSignaturePreviewSmall');
+    const supportingDocSignPreviewMini = document.getElementById('supportingDocSignaturePreviewMini');
+    const supportingDocPreviewSection = document.getElementById('supportingDocPreviewSection');
+    const supportingDocSignPreviewHost = document.getElementById('supportingDocSignPreviewHost');
+
+    let currentSupportingDocFile = null;
+    let supportingDocSignatureCanvas = null;
+    let supportingDocPoints = [];
+    let supportingDocDrawing = false;
+    let supportingDocHasSignature = false;
+
+    // Document selector change handler
+    supportingDocSelectors.forEach(selector => {
+      selector.addEventListener('change', function() {
+        if (this.checked) {
+          supportingDocAttachmentId.value = this.dataset.attachmentId || '';
+          supportingDocSelectedName.textContent = this.dataset.docName || 'Selected Document';
+          supportingDocSelectedInfo.style.display = 'block';
+          displaySupportingDocPreview(this.dataset.docUrl);
+          resetSupportingDocSignature();
+        }
+      });
+    });
+
+    function displaySupportingDocPreview(docUrl) {
+      if (!docUrl) return;
+
+      supportingDocPreviewSection.style.display = 'block';
+      supportingDocPreviewHost.innerHTML = '';
+
+      const docName = docUrl.toLowerCase();
+      if (docName.includes('.pdf')) {
+        const iframe = document.createElement('iframe');
+        iframe.src = docUrl + '#toolbar=0&navpanes=0&scrollbar=0';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        supportingDocPreviewHost.appendChild(iframe);
+      } else if (docName.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        const img = document.createElement('img');
+        img.src = docUrl;
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        img.style.objectFit = 'contain';
+        supportingDocPreviewHost.appendChild(img);
+      } else {
+        supportingDocPreviewHost.innerHTML = '<div class="text-center text-muted"><i class="fa fa-file fa-3x mb-3"></i><p>Document preview not available</p></div>';
+      }
+    }
+
+    function createSupportingDocSignatureCanvas() {
+      if (supportingDocSignaturePad) {
+        supportingDocSignaturePad.style.display = 'block';
+        return supportingDocSignaturePad;
+      }
+      return null;
+    }
+
+    function resetSupportingDocSignature() {
+      supportingDocDrawing = false;
+      supportingDocHasSignature = false;
+      supportingDocPoints = [];
+      if (supportingDocSignaturePad) {
+        supportingDocSignaturePad.width = supportingDocSignaturePad.offsetWidth * window.devicePixelRatio;
+        supportingDocSignaturePad.height = supportingDocSignaturePad.offsetHeight * window.devicePixelRatio;
+        const ctx = supportingDocSignaturePad.getContext('2d');
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        ctx.clearRect(0, 0, supportingDocSignaturePad.width, supportingDocSignaturePad.height);
+      }
+      if (clearSupportingDocSignBtn) clearSupportingDocSignBtn.style.display = 'none';
+      if (supportingDocSignaturePreviewSmall) supportingDocSignaturePreviewSmall.style.display = 'none';
+    }
+
+    function drawToSupportingDocPreview(x0, y0, x1, y1) {
+      if (!supportingDocSignPreviewMini) return;
+      const ctx = supportingDocSignPreviewMini.getContext('2d');
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+
+    function setupSupportingDocCanvasEvents(canvas) {
+      if (!canvas) return;
+
+      canvas.addEventListener('mousedown', (e) => {
+        supportingDocDrawing = true;
+        supportingDocHasSignature = true;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * window.devicePixelRatio;
+        const y = (e.clientY - rect.top) * window.devicePixelRatio;
+        supportingDocPoints.push({x, y});
+
+        const ctx = canvas.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (!supportingDocDrawing) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * window.devicePixelRatio;
+        const y = (e.clientY - rect.top) * window.devicePixelRatio;
+        supportingDocPoints.push({x, y});
+
+        const ctx = canvas.getContext('2d');
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        drawToSupportingDocPreview(supportingDocPoints[supportingDocPoints.length - 2]?.x || 0, supportingDocPoints[supportingDocPoints.length - 2]?.y || 0, x, y);
+      });
+
+      canvas.addEventListener('mouseup', () => {
+        if (supportingDocDrawing && supportingDocHasSignature) {
+          if (clearSupportingDocSignBtn) clearSupportingDocSignBtn.style.display = 'inline-block';
+          if (supportingDocSignaturePreviewSmall) supportingDocSignaturePreviewSmall.style.display = 'flex';
+        }
+        supportingDocDrawing = false;
+      });
+    }
+
+    function clearSupportingDocSignature() {
+      resetSupportingDocSignature();
+      if (supportingDocSignPreviewMini) {
+        const ctx = supportingDocSignPreviewMini.getContext('2d');
+        ctx.clearRect(0, 0, supportingDocSignPreviewMini.width, supportingDocSignPreviewMini.height);
+      }
+    }
+
+    if (clearSupportingDocSignBtn) {
+      clearSupportingDocSignBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        clearSupportingDocSignature();
+      });
+    }
+
+    // Sign and save supporting document
+    if (signSupportingDocBtn) {
+      signSupportingDocBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+
+        if (!supportingDocAttachmentId.value) {
+          alert('Please select a document to sign.');
+          return;
+        }
+
+        if (!supportingDocSignaturePad || !supportingDocHasSignature) {
+          alert('Please draw a signature.');
+          return;
+        }
+
+        const signatureDataUrl = supportingDocSignaturePad.toDataURL('image/png', 0.8);
+        supportingDocSignatureData.value = signatureDataUrl;
+
+        const formData = new FormData();
+        formData.append('attachment_id', supportingDocAttachmentId.value);
+        formData.append('signature_data', signatureDataUrl);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
+
+        signSupportingDocBtn.disabled = true;
+        signSupportingDocBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Signing...';
+
+        fetch('{% url "tracker:sign_supporting_documents" pk=order.id %}', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Document signed successfully!');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('signSupportingDocsModal'));
+            if (modal) modal.hide();
+            location.reload();
+          } else {
+            alert('Error: ' + (data.error || 'Could not sign document'));
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Error signing document: ' + error.message);
+        })
+        .finally(() => {
+          signSupportingDocBtn.disabled = false;
+          signSupportingDocBtn.innerHTML = '<i class="fa fa-check-circle me-2"></i>Sign & Save Document';
+        });
+      });
+    }
+
+    // Handle supporting document sign button click
+    document.querySelectorAll('.supporting-doc-sign-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        resetSupportingDocSignature();
+        supportingDocSignaturePad = createSupportingDocSignatureCanvas();
+        if (supportingDocSignaturePad) {
+          setupSupportingDocCanvasEvents(supportingDocSignaturePad);
+        }
+      });
+    });
+  })();
+
   // Initialize everything when DOM is loaded
   document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded - initializing components');
