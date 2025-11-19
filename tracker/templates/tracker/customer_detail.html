@@ -787,19 +787,26 @@
                         <label class="form-label fw-medium">
                             <i class="fa fa-car me-2 text-info"></i>Vehicle Plate Number
                         </label>
-                        {% with first_vehicle=customer.vehicles.first %}
                         <div class="input-group">
-                            <input type="text" id="quickStartPlate" class="form-control" value="{% if first_vehicle %}{{ first_vehicle.plate_number }}{% endif %}" placeholder="e.g., ABC-1234" style="text-transform: uppercase;" />
-                            {% if first_vehicle %}
-                            <button type="button" class="btn btn-outline-secondary" id="clearPlateBtn" title="Clear and enter new plate">
+                            {% if customer.vehicles.exists %}
+                            <select id="vehicleSelector" class="form-select" style="max-width: 300px;">
+                                <option value="">-- Select existing plate or enter new --</option>
+                                {% for vehicle in customer.vehicles.all %}
+                                <option value="{{ vehicle.plate_number }}">{{ vehicle.plate_number }}</option>
+                                {% endfor %}
+                                <option value="__new__">+ Enter New Plate</option>
+                            </select>
+                            <input type="text" id="quickStartPlate" class="form-control" placeholder="e.g., ABC-1234" style="text-transform: uppercase; display: none;" />
+                            {% else %}
+                            <input type="text" id="quickStartPlate" class="form-control" placeholder="e.g., ABC-1234" style="text-transform: uppercase;" />
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-secondary" id="clearPlateBtn" title="Clear and select from dropdown" style="{% if not customer.vehicles.exists %}display: none;{% endif %}">
                                 <i class="fa fa-times"></i>
                             </button>
-                            {% endif %}
                         </div>
-                        {% endwith %}
                         <small class="text-muted d-block mt-1">
                             <i class="fa fa-info-circle me-1"></i>
-                            {% if first_vehicle %}Use existing plate or enter a new one{% else %}Enter vehicle plate number{% endif %}
+                            {% if customer.vehicles.exists %}Select an existing vehicle or enter a new plate{% else %}Enter vehicle plate number{% endif %}
                         </small>
                     </div>
                     <div class="col-lg-4">
@@ -929,56 +936,100 @@
       for(let i=0;i<cookies.length;i++){const c=cookies[i].trim();if(c.substring(0,name.length+1)===(name+'=')){return decodeURIComponent(c.substring(name.length+1));}}
       return '';
     }
-    const plateEl=document.getElementById('quickStartPlate');
-    const clearPlateBtn=document.getElementById('clearPlateBtn');
-    const startBtn=document.getElementById('quickStartBtn');
-    const stopBtn=document.getElementById('quickStopBtn');
-    const startedOrderEl=document.getElementById('startedOrderId');
+    const plateEl = document.getElementById('quickStartPlate');
+    const vehicleSelector = document.getElementById('vehicleSelector');
+    const clearPlateBtn = document.getElementById('clearPlateBtn');
+    const startBtn = document.getElementById('quickStartBtn');
+    const stopBtn = document.getElementById('quickStopBtn');
+    const startedOrderEl = document.getElementById('startedOrderId');
     const orderTypeModal = document.getElementById('quickOrderTypeModal');
     const confirmStartBtn = document.getElementById('confirmQuickStart');
     const orderTypeRadios = document.querySelectorAll('input[name="quickOrderType"]');
 
-    if(clearPlateBtn){
-      clearPlateBtn.addEventListener('click',function(){
-        if(plateEl) plateEl.value='';
-        plateEl.focus();
+    // Handle vehicle selector dropdown
+    if (vehicleSelector) {
+      vehicleSelector.addEventListener('change', function() {
+        if (this.value === '__new__') {
+          // Show text input for new plate
+          vehicleSelector.style.display = 'none';
+          plateEl.style.display = 'block';
+          plateEl.value = '';
+          plateEl.focus();
+          clearPlateBtn.style.display = 'block';
+        } else if (this.value) {
+          // Selected an existing plate
+          plateEl.value = this.value;
+          vehicleSelector.style.display = 'block';
+          plateEl.style.display = 'none';
+          clearPlateBtn.style.display = 'block';
+        } else {
+          // Empty selection - show selector, hide input
+          vehicleSelector.style.display = 'block';
+          plateEl.style.display = 'none';
+          plateEl.value = '';
+          clearPlateBtn.style.display = 'block';
+        }
       });
     }
 
-    function currentStarted(){return startedOrderEl && startedOrderEl.value ? parseInt(startedOrderEl.value,10):null;}
+    if (clearPlateBtn) {
+      clearPlateBtn.addEventListener('click', function() {
+        if (vehicleSelector) {
+          vehicleSelector.style.display = 'block';
+          vehicleSelector.value = '';
+          plateEl.style.display = 'none';
+          plateEl.value = '';
+        } else if (plateEl) {
+          plateEl.value = '';
+          plateEl.focus();
+        }
+      });
+    }
 
-    if(startBtn){
-      startBtn.addEventListener('click',function(e){
+    function currentStarted() { return startedOrderEl && startedOrderEl.value ? parseInt(startedOrderEl.value, 10) : null; }
+
+    if (startBtn) {
+      startBtn.addEventListener('click', function(e) {
         // Allow starting without plate; modal will handle order type
       });
     }
 
-    document.addEventListener('click', function(ev){
+    document.addEventListener('click', function(ev) {
       const t = ev.target;
       if (!t) return;
       if (t.id === 'confirmQuickStart' || (t.closest && t.closest('#confirmQuickStart'))) {
-        const plate=(plateEl && plateEl.value?plateEl.value:'').trim().toUpperCase();
+        let plate = '';
+
+        // Get plate from either dropdown or text input
+        if (vehicleSelector && vehicleSelector.style.display !== 'none' && vehicleSelector.value && vehicleSelector.value !== '__new__') {
+          plate = vehicleSelector.value.trim().toUpperCase();
+        } else if (plateEl && plateEl.style.display !== 'none') {
+          plate = (plateEl.value || '').trim().toUpperCase();
+        } else if (plateEl) {
+          plate = (plateEl.value || '').trim().toUpperCase();
+        }
+
         const orderType = document.querySelector('input[name="quickOrderType"]:checked')?.value || 'service';
-        const payload={
+        const payload = {
           plate_number: plate,
           order_type: orderType,
           use_existing_customer: true,
           existing_customer_id: {{ customer.id }}
         };
         const modal = bootstrap.Modal.getInstance(orderTypeModal);
-        if(modal) modal.hide();
+        if (modal) modal.hide();
 
-        fetch('/tracker/api/orders/start/',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','X-CSRFToken':getCSRF()},
-          body:JSON.stringify(payload)
-        }).then(r=>r.json()).then(data=>{
-          if(data && data.success){
+        fetch('/tracker/api/orders/start/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRF() },
+          body: JSON.stringify(payload)
+        }).then(r => r.json()).then(data => {
+          if (data && data.success) {
             window.location.reload();
           } else {
             alert(data && data.error ? data.error : 'Failed to start order');
           }
-        }).catch(e=>alert('Error: '+(e && e.message?e.message:e)));
+        }).catch(e => alert('Error: ' + (e && e.message ? e.message : e)));
       }
     });
 

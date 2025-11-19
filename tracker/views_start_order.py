@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.db import transaction
 
 from .models import Order, Customer, Vehicle, Branch, ServiceType, ServiceAddon, InventoryItem, Invoice, InvoiceLineItem
-from .utils import get_user_branch
+from .utils import get_user_branch, scope_queryset
 from .services import OrderService
 
 logger = logging.getLogger(__name__)
@@ -284,16 +284,14 @@ def started_orders_dashboard(request):
     - sort_by: Sort orders by 'started_at', 'plate_number', 'order_type' (default: '-started_at')
     - search: Search by plate number or customer name
     """
-    user_branch = get_user_branch(request.user)
+    from django.db.models import Q, Count
+
     status_filter = request.GET.get('status', '')
     sort_by = request.GET.get('sort_by', '-started_at')
     search_query = request.GET.get('search', '').strip()
 
-    # Build base queryset: include all orders for user's branch, or all orders if user has no branch
-    if user_branch:
-        base_orders = Order.objects.filter(branch=user_branch)
-    else:
-        base_orders = Order.objects.all()
+    # Build base queryset: scope to user's branch/permissions
+    base_orders = scope_queryset(Order.objects.all(), request.user, request)
 
     # Apply status filter
     if status_filter:
@@ -301,7 +299,6 @@ def started_orders_dashboard(request):
         orders = base_orders.filter(status=status_filter).select_related('customer', 'vehicle')
     else:
         # Default: show active orders (created/in_progress/overdue) + completed from today
-        from django.db.models import Q
         today = timezone.now().date()
         orders = base_orders.filter(
             Q(status__in=['created', 'in_progress', 'overdue']) |  # All active orders (including overdue)
@@ -311,9 +308,8 @@ def started_orders_dashboard(request):
     # Apply search filter
     if search_query:
         orders = orders.filter(
-            vehicle__plate_number__icontains=search_query
-        ) | orders.filter(
-            customer__full_name__icontains=search_query
+            Q(vehicle__plate_number__icontains=search_query) |
+            Q(customer__full_name__icontains=search_query)
         )
 
     # Apply sorting (handle related fields properly)
@@ -339,7 +335,6 @@ def started_orders_dashboard(request):
 
     # Calculate statistics
     # Total started orders: all active statuses (created, in_progress, overdue)
-    from django.db.models import Q, Count
     total_started = base_orders.filter(
         status__in=['created', 'in_progress', 'overdue']
     ).count()
