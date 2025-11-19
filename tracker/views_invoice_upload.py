@@ -536,7 +536,7 @@ def api_create_invoice_from_upload(request):
             except Exception as e:
                 logger.warning(f"Failed to update order from invoice: {e}")
             
-            # Response
+            # Response - redirect to order detail page instead of invoice detail
             return JsonResponse({
                 'success': True,
                 'message': 'Invoice created and order updated successfully',
@@ -544,7 +544,7 @@ def api_create_invoice_from_upload(request):
                 'invoice_number': inv.invoice_number,
                 'order_id': order.id,
                 'customer_id': customer_obj.id,
-                'redirect_url': f'/tracker/invoices/{inv.id}/'
+                'redirect_url': f'/tracker/orders/started/{order.id}/'
             })
     
     except Exception as e:
