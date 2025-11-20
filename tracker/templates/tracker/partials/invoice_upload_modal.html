@@ -709,15 +709,15 @@
       additionalOrderTypeSelect.value = '';
       additionalOrderTypeReason.value = '';
 
-      if (addOrderTypeModal) {
-        const modalInstance = bootstrap.Modal.getInstance(addOrderTypeModal);
-        if (modalInstance) {
-          modalInstance.hide();
-        }
-      }
-
       renderAdditionalOrderTypes();
-      errorBox.style.display = 'none';
+
+      // Show success message instead of closing modal
+      errorBox.style.display = 'block';
+      errorBox.innerHTML = '<i class="fa fa-check-circle me-2 text-success"></i>Order type added successfully! Add more or close to continue.';
+      errorBox.className = 'alert alert-success';
+
+      // Keep modal open for adding more order types - user can click X or outside to close when done
+      // Optionally auto-clear the form for next entry (already done above)
     });
   }
 
