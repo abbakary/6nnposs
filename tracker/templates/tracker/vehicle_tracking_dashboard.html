@@ -629,33 +629,52 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="invoice-number">${invoice.invoice_number}</div>
                             <div class="invoice-date">${new Date(invoice.invoice_date).toLocaleDateString()}</div>
                         </div>
-                        <div class="invoice-amount">${formatCurrency(invoice.total_amount)}</div>
+                        <div>
+                            <div class="invoice-amount">${formatCurrency(invoice.total_amount)}</div>
+                            <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+                                Tax: ${formatCurrency(invoice.tax_amount)}
+                            </div>
+                        </div>
                     </div>
-                    <div style="font-size: 0.9rem; color: #666;">
-                        Reference: ${invoice.reference || 'N/A'} | Order: ${invoice.order_number || 'N/A'}
+                    <div style="font-size: 0.9rem; color: #666; margin-bottom: 10px;">
+                        <div>Reference: <strong>${invoice.reference || 'N/A'}</strong></div>
+                        <div>Order: <strong>${invoice.order_number || 'N/A'}</strong></div>
+                        ${invoice.categories && invoice.categories.length > 0 ? `
+                            <div style="margin-top: 8px;">
+                                Categories: ${invoice.categories.map(cat => `<span class="badge-custom badge-service" style="font-size: 0.75rem;">${cat}</span>`).join(' ')}
+                            </div>
+                        ` : ''}
                     </div>
                     <table class="line-items-table">
                         <thead>
                             <tr>
                                 <th>Code</th>
                                 <th>Description</th>
-                                <th>Qty</th>
-                                <th>Unit Price</th>
+                                <th>Category</th>
+                                <th style="text-align: center;">Qty</th>
+                                <th style="text-align: right;">Unit Price</th>
                                 <th style="text-align: right;">Total</th>
+                                <th style="text-align: right;">Tax</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${invoice.line_items.map(item => `
                                 <tr>
-                                    <td><code>${item.code}</code></td>
-                                    <td>${item.description}</td>
-                                    <td>${item.qty}</td>
-                                    <td>${formatCurrency(item.unit_price)}</td>
-                                    <td style="text-align: right;">${formatCurrency(item.total)}</td>
+                                    <td><code style="font-size: 0.85rem;">${item.code || '-'}</code></td>
+                                    <td style="font-size: 0.9rem;">${item.description}</td>
+                                    <td><span class="badge-custom badge-service" style="font-size: 0.75rem;">${item.category}</span></td>
+                                    <td style="text-align: center;">${item.qty}</td>
+                                    <td style="text-align: right;">${formatCurrency(item.unit_price)}</td>
+                                    <td style="text-align: right;"><strong>${formatCurrency(item.total)}</strong></td>
+                                    <td style="text-align: right;">${formatCurrency(item.tax_amount)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
+                    <div style="margin-top: 10px; font-size: 0.9rem; text-align: right; border-top: 1px solid #eee; padding-top: 10px;">
+                        <div>Subtotal: <strong>${formatCurrency(invoice.subtotal)}</strong></div>
+                        <div>Total: <strong style="color: #28a745;">${formatCurrency(invoice.total_amount)}</strong></div>
+                    </div>
                 </div>
             `).join('');
             
