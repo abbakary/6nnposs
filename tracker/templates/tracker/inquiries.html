@@ -474,6 +474,92 @@
             statusForm.submit();
         });
     })();
+
+    // Load customers for create inquiry modal
+    (function(){
+        const customerSelect = document.getElementById('customerSelect');
+        if (customerSelect) {
+            fetch('/tracker/api/customers/summary/', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.customers) {
+                    data.customers.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c.id;
+                        option.textContent = c.full_name;
+                        customerSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(e => console.error('Error loading customers:', e));
+        }
+    })();
+
+    // Create inquiry form submission
+    (function(){
+        const form = document.getElementById('createInquiryForm');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const formData = new FormData(form);
+
+                fetch('/tracker/api/inquiries/create/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        // Close modal
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('createInquiryModal'));
+                        if (modal) modal.hide();
+
+                        // Reset form
+                        form.reset();
+
+                        // Show success and reload
+                        alert('Inquiry created successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(e => {
+                    console.error(e);
+                    alert('Error creating inquiry');
+                });
+            });
+        }
+    })();
+
+    // Export CSV button
+    (function(){
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', function() {
+                // Get selected inquiry ids (if you add checkboxes)
+                // For now, just submit bulk action
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/tracker/api/inquiries/bulk-action/';
+                form.innerHTML = `
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    <input type="hidden" name="action" value="export_csv">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+                document.body.removeChild(form);
+            });
+        }
+    })();
 </script>
 
 <style>
