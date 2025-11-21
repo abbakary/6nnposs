@@ -97,6 +97,11 @@ urlpatterns = [
     path("vehicles/<int:pk>/delete/", views.vehicle_delete, name="vehicle_delete"),
     path("api/customers/<int:customer_id>/vehicles/", views.api_customer_vehicles, name="api_customer_vehicles"),
 
+    # Vehicle Tracking and Service Dashboard
+    path("vehicles/tracking/dashboard/", views_vehicle_tracking.vehicle_tracking_dashboard, name="vehicle_tracking_dashboard"),
+    path("api/vehicles/tracking/data/", views_vehicle_tracking.api_vehicle_tracking_data, name="api_vehicle_tracking_data"),
+    path("api/vehicles/analytics/", views_vehicle_tracking.api_vehicle_analytics, name="api_vehicle_analytics"),
+
     # User management (admin)
     path("users/", views.users_list, name="users_list"),
     path("users/add/", views.user_create, name="user_create"),
