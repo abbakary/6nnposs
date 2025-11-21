@@ -47,25 +47,26 @@ def order_type_display(order):
 def order_type_badge(order):
     """
     Generate HTML badge for order type with mixed type support.
+    Uses visible colors for better contrast.
     """
     if not order:
-        return '<span class="badge bg-secondary rounded-pill">Unknown</span>'
-    
+        return '<span class="badge bg-dark rounded-pill text-white">Unknown</span>'
+
     # Determine badge color and icon based on type and mixed categories
     badge_type = order.type
     if order.type == 'mixed':
         badge_type = 'mixed'
-    
+
     badge_html = ""
-    
+
     if badge_type == 'service':
-        badge_html = '<span class="badge bg-primary rounded-pill"><i class="fa fa-wrench me-1"></i>Service</span>'
+        badge_html = '<span class="badge bg-primary rounded-pill text-white"><i class="fa fa-wrench me-1"></i>Service</span>'
     elif badge_type == 'sales':
-        badge_html = '<span class="badge bg-success rounded-pill"><i class="fa fa-shopping-cart me-1"></i>Sales</span>'
+        badge_html = '<span class="badge bg-success rounded-pill text-white"><i class="fa fa-shopping-cart me-1"></i>Sales</span>'
     elif badge_type == 'labour':
-        badge_html = '<span class="badge bg-warning text-dark rounded-pill"><i class="fa fa-tools me-1"></i>Labour</span>'
+        badge_html = '<span class="badge bg-info rounded-pill text-white"><i class="fa fa-tools me-1"></i>Labour</span>'
     elif badge_type == 'inquiry':
-        badge_html = '<span class="badge bg-info rounded-pill"><i class="fa fa-question-circle me-1"></i>Inquiry</span>'
+        badge_html = '<span class="badge bg-danger rounded-pill text-white"><i class="fa fa-question-circle me-1"></i>Inquiry</span>'
     elif badge_type == 'mixed':
         # For mixed types, show all constituent types
         if order.mixed_categories:
@@ -73,26 +74,28 @@ def order_type_badge(order):
                 categories = json.loads(order.mixed_categories)
                 order_types = set()
                 for category in categories:
-                    category_lower = category.lower()
-                    if 'tyre' in category_lower or 'service' in category_lower:
-                        order_types.add('service')
+                    category_lower = category.lower().strip()
+                    if category_lower == 'sales':
+                        order_types.add('sales')
                     elif category_lower == 'labour':
                         order_types.add('labour')
-                
-                # Create combined badge
+                    elif 'tyre' in category_lower or 'service' in category_lower:
+                        order_types.add('service')
+
+                # Create combined badge with better color
                 if order_types:
                     type_names = sorted(list(order_types))
                     formatted = ' & '.join([_format_type(t) for t in type_names])
-                    badge_html = f'<span class="badge bg-purple rounded-pill"><i class="fa fa-layer-group me-1"></i>{formatted}</span>'
+                    badge_html = f'<span class="badge bg-dark rounded-pill text-white"><i class="fa fa-layer-group me-1"></i>{formatted}</span>'
                 else:
-                    badge_html = '<span class="badge bg-secondary rounded-pill">Mixed</span>'
+                    badge_html = '<span class="badge bg-dark rounded-pill text-white">Mixed</span>'
             except (json.JSONDecodeError, TypeError):
-                badge_html = '<span class="badge bg-secondary rounded-pill">Mixed</span>'
+                badge_html = '<span class="badge bg-dark rounded-pill text-white">Mixed</span>'
         else:
-            badge_html = '<span class="badge bg-secondary rounded-pill">Mixed</span>'
+            badge_html = '<span class="badge bg-dark rounded-pill text-white">Mixed</span>'
     else:
-        badge_html = f'<span class="badge bg-secondary rounded-pill">{order.type.title()}</span>'
-    
+        badge_html = f'<span class="badge bg-dark rounded-pill text-white">{order.type.title()}</span>'
+
     return badge_html
 
 
