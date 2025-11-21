@@ -69,30 +69,6 @@ class OrderStartModal {
     document.getElementById('cancelBtn').addEventListener('click', () => self.resetForm());
   }
 
-  handleOrderTypeChange() {
-    const selectedType = document.querySelector('input[name="order_type"]:checked')?.value;
-    
-    if (!selectedType) {
-      this.showError('orderTypeError', 'Please select an order type');
-      return;
-    }
-
-    // Show/hide vehicle details based on order type
-    const vehicleSection = document.querySelector('.vehicle-details-section');
-    if (selectedType === 'upload') {
-      // Vehicle details are more important for upload
-      vehicleSection?.classList.remove('d-none');
-    } else if (selectedType === 'inquiry') {
-      // Hide vehicle details for inquiry
-      vehicleSection?.classList.add('d-none');
-    } else {
-      vehicleSection?.classList.remove('d-none');
-    }
-
-    this.clearError('orderTypeError');
-    this.formData.order_type = selectedType;
-  }
-
   handleCustomerTypeChange() {
     const selectedType = document.querySelector('input[name="customer_type"]:checked')?.value;
     const personalSubtypeSection = document.querySelector('.personal-subtype-section');
