@@ -445,6 +445,32 @@ class OrderStartModal {
     this.showStep(1);
   }
 
+  continueAsNewOrder() {
+    // Customer and vehicle are found - proceed with new order
+    // This will create a new order without linking to any existing started order
+    if (this.foundCustomer && this.foundVehicle) {
+      // Store the customer and vehicle info for order creation
+      this.formData.customer_id = this.foundCustomer.id;
+      this.formData.use_existing_customer = true;
+
+      // Pre-populate vehicle info
+      document.querySelector('input[name="extracted_plate"]').value = this.foundVehicle.plate || '';
+      document.querySelector('input[name="extracted_make"]').value = this.foundVehicle.make || '';
+      document.querySelector('input[name="extracted_model"]').value = this.foundVehicle.model || '';
+
+      // Pre-select the customer type based on customer type
+      const customerType = this.foundCustomer.customer_type || 'personal';
+      const customerTypeInput = document.querySelector(`input[name="customer_type"][value="${customerType}"]`);
+      if (customerTypeInput) {
+        customerTypeInput.checked = true;
+        this.handleCustomerTypeChange();
+      }
+
+      // Move to customer type selection
+      this.showStep(1);
+    }
+  }
+
   showQuickLookupError(message) {
     const errorDiv = document.getElementById('quickLookupError');
     if (errorDiv) {
