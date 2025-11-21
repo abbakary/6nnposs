@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from tracker.models import Vehicle, Order, Invoice, InvoiceLineItem, LabourCode, Customer
 from tracker.utils.order_type_detector import _normalize_category_to_order_type
-from tracker.utils.auth import get_user_branch
+from .utils import get_user_branch
 
 logger = logging.getLogger(__name__)
 
