@@ -5636,11 +5636,3 @@ def backup_restore(request: HttpRequest):
 # ---------------------------
 # All report views are now in the reports.py module
 # These are just aliases for backward compatibility
-
-    
-
-# ---------------------------
-# Analytics Sub-Pages
-# ---------------------------
-
-@login_required
