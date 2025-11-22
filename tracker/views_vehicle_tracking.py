@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.db.models import Count, Sum, Q, F, DecimalField
-from django.db.models.functions import Cast, TruncDate
+from django.db.models.functions import Cast
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
