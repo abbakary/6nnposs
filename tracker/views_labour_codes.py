@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
@@ -8,6 +9,14 @@ from django.db import transaction, models
 from django.views.decorators.http import require_http_methods
 from .models import LabourCode
 from .forms import LabourCodeForm, LabourCodeCSVImportForm
+
+logger = logging.getLogger(__name__)
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
 
 
 @login_required
@@ -152,15 +161,20 @@ def labour_codes_import(request):
                     messages.error(request, f'Error saving labour code: {str(e)}')
 
         elif action == 'import':
-            # Handle CSV import
+            # Handle CSV/Excel import
             form = LabourCodeCSVImportForm(request.POST, request.FILES)
             if form.is_valid():
-                csv_file = request.FILES.get('csv_file')
+                import_file = request.FILES.get('import_file')
                 clear_existing = form.cleaned_data.get('clear_existing', False)
 
-                if csv_file:
+                if import_file:
                     try:
-                        import_stats = _process_csv_import(csv_file, clear_existing)
+                        # Determine file type based on filename
+                        filename = import_file.name.lower()
+                        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+                            import_stats = _process_excel_import(import_file, clear_existing)
+                        else:
+                            import_stats = _process_csv_import(import_file, clear_existing)
 
                         if import_stats['success']:
                             messages.success(
@@ -174,10 +188,11 @@ def labour_codes_import(request):
                         else:
                             messages.error(request, f"Import failed: {import_stats['error_message']}")
                     except Exception as e:
-                        messages.error(request, f"Error processing CSV file: {str(e)}")
+                        logger.error(f"Error processing import file: {str(e)}", exc_info=True)
+                        messages.error(request, f"Error processing file: {str(e)}")
                         import_stats = None
             else:
-                messages.error(request, 'Please provide a valid CSV file')
+                messages.error(request, 'Please provide a valid file')
     else:
         form = LabourCodeCSVImportForm()
 
@@ -189,62 +204,77 @@ def labour_codes_import(request):
     return render(request, 'tracker/labour_codes_import.html', context)
 
 
-def _process_csv_import(csv_file, clear_existing=False):
-    """Process CSV file and import labour codes"""
+def _process_excel_import(excel_file, clear_existing=False):
+    """Process Excel file (.xlsx, .xls) and import labour codes"""
+    if not PANDAS_AVAILABLE:
+        return {
+            'success': False,
+            'error_message': 'Excel import requires pandas library. Please contact administrator.',
+        }
+
     try:
-        # Read CSV file
-        if isinstance(csv_file, str):
-            csv_content = csv_file
-        else:
-            csv_content = csv_file.read().decode('utf-8-sig')
-        
-        # Parse CSV
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
-        
-        if not csv_reader.fieldnames:
+        # Read Excel file using pandas
+        try:
+            df = pd.read_excel(excel_file, sheet_name=0)
+        except Exception as e:
+            logger.error(f"Failed to read Excel file: {str(e)}")
             return {
                 'success': False,
-                'error_message': 'CSV file is empty or invalid format',
+                'error_message': f'Failed to read Excel file: {str(e)}',
             }
-        
+
+        if df.empty:
+            return {
+                'success': False,
+                'error_message': 'Excel file is empty.',
+            }
+
+        # Normalize column names (lowercase, strip whitespace)
+        df.columns = [col.strip().lower() for col in df.columns]
+
         # Check required columns
         required_cols = {'code', 'description', 'category'}
-        csv_cols = set(col.strip().lower() for col in csv_reader.fieldnames)
-        
-        if not required_cols.issubset(csv_cols):
+        excel_cols = set(df.columns)
+
+        if not required_cols.issubset(excel_cols):
             return {
                 'success': False,
-                'error_message': f'CSV must contain columns: code, description, category. Found: {", ".join(csv_reader.fieldnames)}',
+                'error_message': f'Excel must contain columns: code, description, category. Found: {", ".join(df.columns)}',
             }
-        
+
         with transaction.atomic():
             if clear_existing:
                 LabourCode.objects.all().delete()
-            
+
             created_count = 0
             updated_count = 0
             error_details = []
-            
-            for row_num, row in enumerate(csv_reader, start=2):
+
+            for row_num, row in df.iterrows():
                 try:
-                    code = row.get('code', '').strip().upper()
-                    description = row.get('description', '').strip()
-                    category = row.get('category', '').strip().lower()
-                    is_active = row.get('is_active', 'true').lower() in ['true', '1', 'yes']
-                    
+                    code = str(row.get('code', '')).strip().upper()
+                    description = str(row.get('description', '')).strip()
+                    category = str(row.get('category', '')).strip().lower()
+                    is_active = True
+
+                    # Check for is_active column if present
+                    if 'is_active' in df.columns:
+                        is_active_val = row.get('is_active', 'true')
+                        is_active = str(is_active_val).lower() in ['true', '1', 'yes', 'active']
+
                     # Validate required fields
-                    if not code:
-                        error_details.append(f"Row {row_num}: Code is required")
+                    if not code or code == 'nan':
+                        error_details.append(f"Row {row_num + 2}: Code is required")
                         continue
-                    
-                    if not description:
-                        error_details.append(f"Row {row_num}: Description is required")
+
+                    if not description or description == 'nan':
+                        error_details.append(f"Row {row_num + 2}: Description is required")
                         continue
-                    
-                    if not category:
-                        error_details.append(f"Row {row_num}: Category is required")
+
+                    if not category or category == 'nan':
+                        error_details.append(f"Row {row_num + 2}: Category is required")
                         continue
-                    
+
                     # Create or update labour code
                     obj, created = LabourCode.objects.update_or_create(
                         code=code,
@@ -254,15 +284,18 @@ def _process_csv_import(csv_file, clear_existing=False):
                             'is_active': is_active,
                         }
                     )
-                    
+
                     if created:
                         created_count += 1
                     else:
                         updated_count += 1
-                
+
                 except Exception as e:
-                    error_details.append(f"Row {row_num}: {str(e)}")
-        
+                    error_details.append(f"Row {row_num + 2}: {str(e)}")
+                    logger.error(f"Error processing row {row_num + 2}: {str(e)}")
+
+        logger.info(f"Excel import completed: Created={created_count}, Updated={updated_count}, Errors={len(error_details)}")
+
         return {
             'success': True,
             'created': created_count,
@@ -270,13 +303,106 @@ def _process_csv_import(csv_file, clear_existing=False):
             'errors': len(error_details),
             'error_details': error_details,
         }
-    
+
+    except Exception as e:
+        logger.error(f"Error processing Excel file: {str(e)}", exc_info=True)
+        return {
+            'success': False,
+            'error_message': f'Error processing Excel file: {str(e)}',
+        }
+
+
+def _process_csv_import(csv_file, clear_existing=False):
+    """Process CSV file and import labour codes"""
+    try:
+        # Read CSV file
+        if isinstance(csv_file, str):
+            csv_content = csv_file
+        else:
+            csv_content = csv_file.read().decode('utf-8-sig')
+
+        # Parse CSV
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
+
+        if not csv_reader.fieldnames:
+            return {
+                'success': False,
+                'error_message': 'CSV file is empty or invalid format',
+            }
+
+        # Check required columns
+        required_cols = {'code', 'description', 'category'}
+        csv_cols = set(col.strip().lower() for col in csv_reader.fieldnames)
+
+        if not required_cols.issubset(csv_cols):
+            return {
+                'success': False,
+                'error_message': f'CSV must contain columns: code, description, category. Found: {", ".join(csv_reader.fieldnames)}',
+            }
+
+        with transaction.atomic():
+            if clear_existing:
+                LabourCode.objects.all().delete()
+
+            created_count = 0
+            updated_count = 0
+            error_details = []
+
+            for row_num, row in enumerate(csv_reader, start=2):
+                try:
+                    code = row.get('code', '').strip().upper()
+                    description = row.get('description', '').strip()
+                    category = row.get('category', '').strip().lower()
+                    is_active = row.get('is_active', 'true').lower() in ['true', '1', 'yes']
+
+                    # Validate required fields
+                    if not code:
+                        error_details.append(f"Row {row_num}: Code is required")
+                        continue
+
+                    if not description:
+                        error_details.append(f"Row {row_num}: Description is required")
+                        continue
+
+                    if not category:
+                        error_details.append(f"Row {row_num}: Category is required")
+                        continue
+
+                    # Create or update labour code
+                    obj, created = LabourCode.objects.update_or_create(
+                        code=code,
+                        defaults={
+                            'description': description,
+                            'category': category,
+                            'is_active': is_active,
+                        }
+                    )
+
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
+
+                except Exception as e:
+                    error_details.append(f"Row {row_num}: {str(e)}")
+
+        logger.info(f"CSV import completed: Created={created_count}, Updated={updated_count}, Errors={len(error_details)}")
+
+        return {
+            'success': True,
+            'created': created_count,
+            'updated': updated_count,
+            'errors': len(error_details),
+            'error_details': error_details,
+        }
+
     except UnicodeDecodeError:
         return {
             'success': False,
             'error_message': 'File encoding error. Please use UTF-8 encoded CSV files.',
         }
     except Exception as e:
+        logger.error(f"Error processing CSV file: {str(e)}", exc_info=True)
         return {
             'success': False,
             'error_message': f'Error processing file: {str(e)}',

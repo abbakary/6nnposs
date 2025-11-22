@@ -309,6 +309,7 @@
                       <label class="form-label">{{ form.reference.label }}</label>
                       {{ form.reference }}
                       {% if form.reference.errors %}<div class="text-danger f-12">{{ form.reference.errors|striptags }}</div>{% endif %}
+                      <small class="text-muted d-block mt-1">Reference number or document ID</small>
                     </div>
                     <div class="col-md-6">
                       <label class="form-label">{{ form.due_date.label }}</label>
@@ -892,7 +893,8 @@
                       'attended_by': hdr.attended_by || '',
                       'kind_attention': hdr.kind_attention || '',
                       'notes': (hdr.notes || hdr.remarks || ''),
-                      'terms': hdr.delivery_terms || ''
+                      'terms': hdr.delivery_terms || '',
+                      'plate_number': hdr.reference || ''
                     };
 
                     Object.keys(map).forEach(k=>{

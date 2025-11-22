@@ -481,15 +481,28 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let trendChart, typeChart, topVehiclesChart;
-    
+
+    // Initialize filters with defaults if not provided from server
+    const serverStartDate = '{{ start_date }}' || '';
+    const serverEndDate = '{{ end_date }}' || '';
+
+    // Parse server dates or generate defaults
+    let defaultEndDate = new Date();
+    let defaultStartDate = new Date();
+    defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+
     const filters = {
         period: 'monthly',
-        start_date: '{{ start_date }}',
-        end_date: '{{ end_date }}',
+        start_date: serverStartDate || defaultStartDate.toISOString().split('T')[0],
+        end_date: serverEndDate || defaultEndDate.toISOString().split('T')[0],
         status: 'all',
         order_type: 'all',
         search: ''
     };
+
+    // Set initial date inputs
+    document.getElementById('startDate').value = filters.start_date;
+    document.getElementById('endDate').value = filters.end_date;
     
     // Period buttons
     document.querySelectorAll('.period-btn').forEach(btn => {
@@ -529,16 +542,42 @@ document.addEventListener('DOMContentLoaded', function() {
         filters.end_date = document.getElementById('endDate').value;
         filters.status = document.getElementById('statusFilter').value;
         filters.order_type = document.getElementById('orderTypeFilter').value;
-        filters.search = document.getElementById('searchInput').value;
+        filters.search = document.getElementById('searchInput').value || '';
     }
-    
+
+    function buildApiUrl(endpoint, params) {
+        const url = new URL(endpoint, window.location.origin);
+        Object.keys(params).forEach(key => {
+            const value = params[key];
+            if (value !== undefined && value !== null && value !== '') {
+                url.searchParams.append(key, value);
+            }
+        });
+        return url.toString();
+    }
+
     function loadDashboardData() {
         updateFilters();
         showLoadingSpinner(true);
-        
+
+        const trackingParams = {
+            period: filters.period,
+            start_date: filters.start_date,
+            end_date: filters.end_date,
+            status: filters.status,
+            order_type: filters.order_type,
+            search: filters.search
+        };
+
+        const analyticsParams = {
+            period: filters.period,
+            start_date: filters.start_date,
+            end_date: filters.end_date
+        };
+
         Promise.all([
-            fetch(`/tracker/api/vehicles/tracking/data/?period=${filters.period}&start_date=${filters.start_date}&end_date=${filters.end_date}&status=${filters.status}&order_type=${filters.order_type}&search=${filters.search}`).then(r => r.json()),
-            fetch(`/tracker/api/vehicles/analytics/?period=${filters.period}&start_date=${filters.start_date}&end_date=${filters.end_date}`).then(r => r.json())
+            fetch(buildApiUrl('/tracker/api/vehicles/tracking/data/', trackingParams)).then(r => r.json()),
+            fetch(buildApiUrl('/tracker/api/vehicles/analytics/', analyticsParams)).then(r => r.json())
         ]).then(([trackingData, analyticsData]) => {
             if (trackingData.success) {
                 renderMetrics(trackingData.summary);

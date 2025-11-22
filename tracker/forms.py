@@ -1322,14 +1322,14 @@ class LabourCodeForm(forms.ModelForm):
 
 
 class LabourCodeCSVImportForm(forms.Form):
-    csv_file = forms.FileField(
+    import_file = forms.FileField(
         required=True,
         widget=forms.FileInput(attrs={
             'class': 'form-control',
-            'accept': '.csv',
+            'accept': '.csv,.xlsx,.xls',
             'required': True
         }),
-        help_text='CSV file should have columns: code, description, category'
+        help_text='CSV or Excel file should have columns: code, description, category'
     )
 
     clear_existing = forms.BooleanField(
