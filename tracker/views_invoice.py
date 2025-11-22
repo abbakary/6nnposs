@@ -143,11 +143,38 @@ def api_upload_extract_invoice(request):
     # If commit flag not provided, return preview only
     commit = str(request.POST.get('commit', '')).lower() == 'true'
     if not commit:
+        # Enrich items with category information for preview
+        from tracker.views_invoice_upload import _get_item_code_categories
+
+        item_codes = [item.get('code') for item in items if item.get('code')]
+        code_categories = _get_item_code_categories(item_codes)
+
+        enriched_items = []
+        for item in items:
+            code = item.get('code', '')
+            category_info = code_categories.get(code, {
+                'category': 'Sales',
+                'order_type': 'sales',
+                'color_class': 'badge-sales'
+            })
+
+            enriched_items.append({
+                'description': item.get('description', ''),
+                'qty': int(item.get('qty', 1)) if isinstance(item.get('qty'), (int, float)) else 1,
+                'unit': item.get('unit'),
+                'code': code,
+                'value': float(item.get('value') or 0),
+                'rate': float(item.get('rate') or 0),
+                'category': category_info.get('category'),
+                'order_type': category_info.get('order_type'),
+                'color_class': category_info.get('color_class')
+            })
+
         return JsonResponse({
             'success': True,
             'mode': 'preview',
             'header': header,
-            'items': items,
+            'items': enriched_items,
             'raw_text': raw_text,
             'ocr_available': extracted.get('ocr_available', False)
         })
