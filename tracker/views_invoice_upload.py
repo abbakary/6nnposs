@@ -507,6 +507,7 @@ def api_create_invoice_from_upload(request):
             inv.branch = order.branch if order and getattr(order, 'branch', None) else user_branch
             inv.order = order
             inv.customer = customer_obj
+            inv.vehicle = vehicle  # Link invoice to vehicle for tracking
 
             # Parse invoice date
             invoice_date_str = request.POST.get('invoice_date', '')
