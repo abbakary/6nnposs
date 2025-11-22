@@ -40,6 +40,7 @@ urlpatterns = [
     path("customer-groups/export/", views.customer_groups_export, name="customer_groups_export"),
     path("api/customer-groups/data/", views.customer_groups_data, name="customer_groups_data"),
     path("api/customers/summary/", views.api_customers_summary, name="api_customers_summary"),
+    path("api/customers/list/", views.api_customers_list, name="api_customers_list"),
 
     path("orders/", views.orders_list, name="orders_list"),
     path("orders/export/", views.orders_export, name="orders_export"),
