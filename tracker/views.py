@@ -176,6 +176,69 @@ def api_orders_statuses(request: HttpRequest):
     return JsonResponse({'success': True, 'orders': out})
 
 @login_required
+def api_order_invoice_totals(request: HttpRequest, pk: int):
+    """
+    Get aggregated invoice totals for an order.
+    Sums VAT, NET (subtotal), and Gross amounts from all linked invoices.
+    """
+    from .models import Order, OrderInvoiceLink
+    from decimal import Decimal
+    from django.db.models import Sum
+
+    orders_qs = scope_queryset(Order.objects.all(), request.user, request)
+
+    try:
+        order = orders_qs.get(pk=pk)
+    except Order.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Order not found'}, status=404)
+
+    # Get all linked invoices for this order
+    invoice_links = OrderInvoiceLink.objects.filter(order=order).select_related('invoice')
+
+    # Initialize totals
+    total_net = Decimal('0')
+    total_vat = Decimal('0')
+    total_gross = Decimal('0')
+    invoice_count = 0
+
+    # Sum amounts from all linked invoices
+    invoices_data = []
+    for link in invoice_links:
+        invoice = link.invoice
+        subtotal = invoice.subtotal or Decimal('0')
+        tax = invoice.tax_amount or Decimal('0')
+        gross = invoice.total_amount or Decimal('0')
+
+        total_net += subtotal
+        total_vat += tax
+        total_gross += gross
+        invoice_count += 1
+
+        invoices_data.append({
+            'id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'invoice_date': invoice.invoice_date.isoformat() if invoice.invoice_date else None,
+            'subtotal': float(subtotal),
+            'vat': float(tax),
+            'total': float(gross),
+            'is_primary': link.is_primary,
+            'linked_at': link.linked_at.isoformat(),
+        })
+
+    return JsonResponse({
+        'success': True,
+        'order_id': order.id,
+        'order_number': order.order_number,
+        'invoice_count': invoice_count,
+        'aggregated_totals': {
+            'net': float(total_net),
+            'vat': float(total_vat),
+            'gross': float(total_gross),
+        },
+        'invoices': invoices_data,
+    })
+
+@login_required
 def api_service_distribution(request: HttpRequest):
     """Return service type distribution for the selected period.
     period: one of week, month, quarter, year

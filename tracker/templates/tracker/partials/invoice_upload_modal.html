@@ -506,7 +506,7 @@
 
       setProgress(10);
 
-      const response = await fetch('{% url "tracker:api_upload_extract_invoice" %}', {
+      const response = await fetch('{% url "tracker:api_extract_invoice_preview" %}', {
         method: 'POST',
         body: formData,
         headers: {

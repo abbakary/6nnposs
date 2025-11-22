@@ -5,6 +5,7 @@ Handles two-step process: extract preview → create/update records
 
 import json
 import logging
+import re
 from decimal import Decimal
 from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
@@ -433,6 +434,19 @@ def api_create_invoice_from_upload(request):
                             logger.warning(f"Code {extracted_code_no} already used by another customer {existing_customer.id}, keeping current code")
                 except Exception as e:
                     logger.warning(f"Failed to update customer code with extracted code_no: {e}")
+
+            # Extract plate from reference if not explicitly provided
+            # The reference field from invoice may contain the vehicle plate number
+            if not plate:
+                reference = request.POST.get('reference', '').strip().upper()
+                if reference:
+                    # Check if reference looks like a plate number
+                    # Typical format: 2-3 letters + 3-4 digits (e.g., ABC123, T123ABC)
+                    if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', reference) or \
+                       re.match(r'^[A-Z]{1,3}\d{3,4}$', reference) or \
+                       re.match(r'^\d{1,4}[A-Z]{2,3}$', reference):
+                        plate = reference.replace('-', '').replace(' ', '')
+                        logger.info(f"Extracted vehicle plate from reference field: {plate}")
 
             # Get or create vehicle if plate provided
             # The plate number is extracted from the invoice Reference field
