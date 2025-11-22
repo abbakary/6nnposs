@@ -258,7 +258,7 @@ def api_vehicle_tracking_data(request):
             if status_filter != 'all':
                 if status_filter == 'completed' and order_stats['completed'] == 0:
                     continue
-                elif status_filter == 'pending' and (order_stats['pending'] + order_stats['created']) == 0:
+                elif status_filter == 'pending' and order_stats.get('pending', 0) == 0:
                     continue
             
             # Apply order type filter
@@ -382,7 +382,7 @@ def api_vehicle_analytics(request):
         ).order_by('period_date')
 
         # Group data by period in Python (SQLite workaround)
-        trends_dict = defaultdict(lambda: {'total_amount': 0, 'invoice_count': 0, 'vehicles': set()})
+        trends_dict = defaultdict(lambda: {'total_amount': Decimal('0'), 'invoice_count': 0, 'vehicles': set()})
 
         for invoice in invoices_with_dates:
             invoice_date = invoice['period_date']
@@ -439,12 +439,14 @@ def api_vehicle_analytics(request):
             invoice_count=Count('invoices', distinct=True)
         ).filter(
             total_spent__isnull=False
-        ).order_by('-total_spent')[:10]
-        
+        )
+
         if user_branch:
             top_vehicles = top_vehicles.filter(
                 invoices__branch=user_branch
             )
+
+        top_vehicles = top_vehicles.order_by('-total_spent')[:10]
         
         top_vehicles_data = [
             {
