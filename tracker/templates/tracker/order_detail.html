@@ -5262,7 +5262,211 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
       });
     }
+
+    // Initialize additional invoice upload handler
+    initializeAdditionalInvoiceUpload();
   });
+
+  function initializeAdditionalInvoiceUpload() {
+    const fileInput = document.getElementById('additionalInvoiceFile');
+    const uploadBtn = document.getElementById('additionalUploadBtn');
+    const form = document.getElementById('additionalInvoiceForm');
+    const uploadError = document.getElementById('additionalUploadError');
+    const uploadSuccess = document.getElementById('additionalExtractionSuccess');
+    const uploadProgress = document.getElementById('additionalUploadProgress');
+    const progressBar = document.getElementById('additionalUploadProgressBar');
+    const submitBtn = document.getElementById('addAdditionalInvoiceBtn');
+    const previewSection = document.getElementById('additionalExtractedDataPreview');
+    const hiddenFieldsDiv = document.getElementById('additionalInvoiceHiddenFields');
+
+    function getCSRF() {
+      return document.querySelector('[name="csrfmiddlewaretoken"]')?.value || '';
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    }
+
+    function setProgress(percent) {
+      uploadProgress.style.display = percent > 0 ? 'block' : 'none';
+      progressBar.style.width = percent + '%';
+    }
+
+    uploadBtn?.addEventListener('click', async function() {
+      const file = fileInput?.files[0];
+      if (!file) {
+        uploadError.textContent = 'Please select a PDF file';
+        uploadError.style.display = 'block';
+        return;
+      }
+
+      uploadError.style.display = 'none';
+      uploadSuccess.style.display = 'none';
+      setProgress(10);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('X-CSRFToken', getCSRF());
+
+      try {
+        const response = await fetch('{% url "tracker:api_extract_invoice_preview" %}', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCSRF()
+          }
+        });
+
+        setProgress(90);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          uploadError.textContent = errorData.message || 'Failed to extract invoice data';
+          uploadError.style.display = 'block';
+          return;
+        }
+
+        const data = await response.json();
+        setProgress(100);
+
+        if (!data.success) {
+          uploadError.textContent = data.message || 'Failed to extract invoice data';
+          uploadError.style.display = 'block';
+          return;
+        }
+
+        // Display success
+        uploadSuccess.style.display = 'block';
+        previewSection.style.display = 'block';
+
+        // Populate header information
+        const header = data.header || {};
+        document.getElementById('additionalPreviewInvoiceNumber').textContent = header.invoice_no || '-';
+        document.getElementById('additionalPreviewInvoiceDate').textContent = header.date || '-';
+        document.getElementById('additionalPreviewSubtotal').textContent = formatCurrency(header.net_value || 0);
+        document.getElementById('additionalPreviewTax').textContent = formatCurrency(header.vat || 0);
+        document.getElementById('additionalPreviewTotal').textContent = formatCurrency(header.gross_value || 0);
+
+        // Populate line items
+        const items = data.items || [];
+        const lineItemsBody = document.getElementById('additionalLineItemsBody');
+        lineItemsBody.innerHTML = '';
+
+        if (items.length > 0) {
+          document.getElementById('additionalExtractedLineItemsSection').style.display = 'block';
+
+          items.forEach((item, idx) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td style="text-align: center;"><small>${idx + 1}</small></td>
+              <td><small><code>${item.code || '-'}</code></small></td>
+              <td><small>${item.description || '-'}</small></td>
+              <td><small>${item.unit || '-'}</small></td>
+              <td style="text-align: center;"><small>${item.qty || 0}</small></td>
+              <td style="text-align: right;"><small>${formatCurrency(item.rate || 0)}</small></td>
+              <td style="text-align: right;"><small><strong>${formatCurrency(item.value || 0)}</strong></small></td>
+            `;
+            lineItemsBody.appendChild(row);
+          });
+        } else {
+          document.getElementById('additionalExtractedLineItemsSection').style.display = 'none';
+        }
+
+        // Store extracted data in hidden fields
+        hiddenFieldsDiv.innerHTML = '';
+        const fields = {
+          'invoice_number': header.invoice_no,
+          'invoice_date': header.date,
+          'code_no': header.code_no,
+          'reference': header.reference,
+          'customer_name': header.customer_name,
+          'phone': header.phone,
+          'email': header.email,
+          'address': header.address,
+          'subtotal': header.net_value,
+          'tax_amount': header.vat,
+          'tax_rate': 0,
+          'total_amount': header.gross_value
+        };
+
+        Object.keys(fields).forEach(key => {
+          if (fields[key] !== undefined && fields[key] !== null) {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = key;
+            inp.value = fields[key];
+            hiddenFieldsDiv.appendChild(inp);
+          }
+        });
+
+        // Enable submit button
+        submitBtn.disabled = false;
+        setProgress(0);
+
+      } catch (error) {
+        console.error('Error uploading invoice:', error);
+        uploadError.textContent = 'Error uploading invoice: ' + error.message;
+        uploadError.style.display = 'block';
+        setProgress(0);
+      }
+    });
+
+    // Handle form submission
+    form?.addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const selectedOrderId = form.querySelector('input[name="selected_order_id"]').value;
+      const customerId = form.querySelector('input[name="customer_id"]')?.value;
+
+      const formData = new FormData(form);
+      formData.append('commit', 'true');
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCSRF()
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Show success message
+          const successAlert = document.createElement('div');
+          successAlert.className = 'alert alert-success alert-dismissible fade show';
+          successAlert.innerHTML = `
+            <i class="fa fa-check-circle me-2"></i>Invoice linked successfully!
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          `;
+          document.querySelector('.modal-body').insertBefore(successAlert, document.querySelector('.card'));
+
+          // Close modal after a delay
+          setTimeout(() => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('uploadAdditionalInvoiceModal'));
+            modal?.hide();
+            // Reload the page to show updated invoice list
+            location.reload();
+          }, 1500);
+        } else {
+          uploadError.textContent = data.message || 'Failed to create invoice';
+          uploadError.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error submitting form:', error);
+        uploadError.textContent = 'Error: ' + error.message;
+        uploadError.style.display = 'block';
+      }
+    });
+  }
 
 })();
 </script>
