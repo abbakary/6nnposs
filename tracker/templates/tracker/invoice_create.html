@@ -311,12 +311,6 @@
                       {% if form.reference.errors %}<div class="text-danger f-12">{{ form.reference.errors|striptags }}</div>{% endif %}
                       <small class="text-muted d-block mt-1">Reference number or document ID</small>
                     </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Vehicle Plate Number <small class="text-muted">(optional)</small></label>
-                      <input type="text" name="plate" id="plateInput" class="form-control" placeholder="e.g., KBZ 123A" maxlength="32">
-                      <small class="text-muted d-block mt-1">Used for vehicle tracking. If extracted from invoice reference, it will be auto-populated.</small>
-                    </div>
                     <div class="col-md-6">
                       <label class="form-label">{{ form.due_date.label }}</label>
                       {{ form.due_date }}
