@@ -6,10 +6,11 @@ with analytics, charts, and detailed invoice/order information.
 
 import logging
 import json
+from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.db.models import Count, Sum, Q, F, DecimalField
-from django.db.models.functions import Cast, TruncDate, TruncWeek, TruncMonth
+from django.db.models.functions import Cast
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -257,7 +258,7 @@ def api_vehicle_tracking_data(request):
             if status_filter != 'all':
                 if status_filter == 'completed' and order_stats['completed'] == 0:
                     continue
-                elif status_filter == 'pending' and (order_stats['pending'] + order_stats['created']) == 0:
+                elif status_filter == 'pending' and order_stats.get('pending', 0) == 0:
                     continue
             
             # Apply order type filter
@@ -371,30 +372,50 @@ def api_vehicle_analytics(request):
 
         logger.info(f"Analytics - Invoices in range {start_date} to {end_date}: {invoices_qs.count()}")
 
-        # Aggregate by time period
-        if period == 'daily':
-            trunc_field = TruncDate('invoice_date')
-        elif period == 'weekly':
-            trunc_field = TruncWeek('invoice_date')
-        else:
-            trunc_field = TruncMonth('invoice_date')
-        
-        trends = invoices_qs.annotate(
-            period_date=trunc_field
-        ).values('period_date').annotate(
-            total_amount=Sum('total_amount'),
-            invoice_count=Count('id'),
-            vehicle_count=Count('vehicle', distinct=True)
-        ).order_by('period_date')
-        
+        # Fetch all invoices without database-level date truncation (SQLite compatibility)
+        invoices_with_dates = invoices_qs.values(
+            'invoice_date',
+            'total_amount',
+            'vehicle'
+        ).order_by('invoice_date')
+
+        # Group data by period in Python
+        trends_dict = defaultdict(lambda: {'total_amount': Decimal('0'), 'invoice_count': 0, 'vehicles': set()})
+
+        for invoice in invoices_with_dates:
+            # Get the date portion from invoice_date (handle datetime if needed)
+            invoice_date_value = invoice['invoice_date']
+            if hasattr(invoice_date_value, 'date'):
+                # It's a datetime, convert to date
+                invoice_date = invoice_date_value.date()
+            else:
+                # It's already a date
+                invoice_date = invoice_date_value
+
+            # Determine grouping key based on period
+            if period == 'daily':
+                period_key = invoice_date
+            elif period == 'weekly':
+                # Group by week (Monday of that week)
+                period_key = invoice_date - timedelta(days=invoice_date.weekday())
+            else:  # monthly
+                # Group by first day of month
+                period_key = invoice_date.replace(day=1)
+
+            trends_dict[period_key]['total_amount'] += invoice['total_amount'] or Decimal('0')
+            trends_dict[period_key]['invoice_count'] += 1
+            if invoice['vehicle']:
+                trends_dict[period_key]['vehicles'].add(invoice['vehicle'])
+
+        # Convert to list and sort by date
         trends_data = [
             {
-                'date': t['period_date'].isoformat() if t['period_date'] else '',
-                'total_amount': float(t['total_amount'] or 0),
-                'invoice_count': t['invoice_count'],
-                'vehicle_count': t['vehicle_count'],
+                'date': date.isoformat() if date else '',
+                'total_amount': float(data['total_amount']),
+                'invoice_count': data['invoice_count'],
+                'vehicle_count': len(data['vehicles']),
             }
-            for t in trends
+            for date, data in sorted(trends_dict.items())
         ]
         
         # Spending by order type
@@ -423,12 +444,14 @@ def api_vehicle_analytics(request):
             invoice_count=Count('invoices', distinct=True)
         ).filter(
             total_spent__isnull=False
-        ).order_by('-total_spent')[:10]
-        
+        )
+
         if user_branch:
             top_vehicles = top_vehicles.filter(
                 invoices__branch=user_branch
             )
+
+        top_vehicles = top_vehicles.order_by('-total_spent')[:10]
         
         top_vehicles_data = [
             {

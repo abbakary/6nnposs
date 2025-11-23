@@ -404,9 +404,18 @@
           // Apply status filter visibility (active/inactive/returning)
           const sSel = (new URLSearchParams(window.location.search).get('status')||'').toLowerCase();
           let ok = true;
-          if(sSel==='active') ok = (c.total_visits > 0);
-          else if(sSel==='inactive') ok = (c.total_visits <= 0);
-          else if(sSel==='returning') ok = (c.total_visits > 1);
+          if(sSel==='active'){
+            // Active today: customer visited today (check if last_visit is today)
+            const today = new Date().toDateString();
+            const lastVisitDate = c.last_visit ? new Date(c.last_visit).toDateString() : null;
+            ok = (lastVisitDate === today);
+          } else if(sSel==='inactive'){
+            // Inactive: customer has never visited (total_visits = 0)
+            ok = (c.total_visits === 0);
+          } else if(sSel==='returning'){
+            // Returning: customer visited more than once
+            ok = (c.total_visits > 1);
+          }
           row.style.display = ok ? '' : 'none';
         });
       });
