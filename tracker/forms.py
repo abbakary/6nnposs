@@ -1299,7 +1299,7 @@ class LabourCodeForm(forms.ModelForm):
             }),
             'category': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Enter category (e.g., labour, tyre service)',
+                'placeholder': 'Enter category (labour or service)',
                 'required': True
             }),
             'is_active': forms.CheckboxInput(attrs={
