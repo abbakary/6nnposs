@@ -611,7 +611,8 @@
                         <tbody>
                           {% for item in link.invoice.line_items.all %}
                           <tr>
-                            <td style="width: 40%;"><small>{{ item.description|default:'-' }}</small></td>
+                            <td style="width: 35%;"><small>{{ item.description|default:'-' }}</small></td>
+                            <td style="width: 12%; text-align: center;"><small>{% if item.item_type == 'service' %}<span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span>{% elif item.item_type == 'product' %}<span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Product</span>{% else %}<span class="badge bg-secondary text-white" style="font-size: 0.7rem;">-</span>{% endif %}</small></td>
                             <td style="width: 10%; text-align: center;"><small>{{ item.quantity }}</small></td>
                             <td style="width: 15%; text-align: right;"><small>{{ item.unit_price|floatformat:2 }}</small></td>
                             <td style="width: 20%; text-align: right;"><small class="fw-semibold">{{ item.line_total|floatformat:2 }}</small></td>
