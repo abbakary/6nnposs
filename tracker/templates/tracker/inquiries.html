@@ -500,9 +500,15 @@
         });
     })();
 
-    // Load customers for create inquiry modal
+    // Load customers for create inquiry modal and handle customer mode switching
     (function(){
         const customerSelect = document.getElementById('customerSelect');
+        const existingMode = document.getElementById('existingCustomerMode');
+        const newMode = document.getElementById('newCustomerMode');
+        const existingSection = document.getElementById('existingCustomerSection');
+        const newSection = document.getElementById('newCustomerSection');
+
+        // Load customers for dropdown
         if (customerSelect) {
             fetch('/tracker/api/customers/list/', {
                 headers: {
@@ -533,6 +539,29 @@
                 option.textContent = '-- Error loading customers --';
                 option.disabled = true;
                 customerSelect.appendChild(option);
+            });
+        }
+
+        // Handle customer mode switching
+        if (existingMode && newMode) {
+            existingMode.addEventListener('change', function() {
+                if (this.checked) {
+                    existingSection.style.display = 'block';
+                    newSection.style.display = 'none';
+                    customerSelect.required = true;
+                    document.getElementById('newCustomerName').required = false;
+                    document.getElementById('newCustomerPhone').required = false;
+                }
+            });
+
+            newMode.addEventListener('change', function() {
+                if (this.checked) {
+                    existingSection.style.display = 'none';
+                    newSection.style.display = 'block';
+                    customerSelect.required = false;
+                    document.getElementById('newCustomerName').required = true;
+                    document.getElementById('newCustomerPhone').required = true;
+                }
             });
         }
     })();
