@@ -3171,8 +3171,16 @@ def order_detail(request: HttpRequest, pk: int):
     except Exception:
         pass
 
-    # Get linked invoice (one-to-one relationship)
-    invoice = order.invoices.first() if order.invoices.exists() else None
+    # Prefer primary-linked invoice if present; otherwise, fall back to earliest created
+    invoice = None
+    try:
+      primary_link = order.invoice_links.filter(is_primary=True).select_related('invoice').first()
+      if primary_link:
+        invoice = primary_link.invoice
+      elif order.invoices.exists():
+        invoice = order.invoices.order_by('created_at').first()
+    except Exception:
+      invoice = order.invoices.order_by('created_at').first() if order.invoices.exists() else None
 
     # Extract services from description for better display
     selected_services = []
@@ -3217,12 +3225,28 @@ def order_detail(request: HttpRequest, pk: int):
     available_invoices = order.customer.invoices.exclude(id__in=linked_invoice_ids).order_by('-invoice_date')
 
     # Prepare context
+    line_item_categories = {}
+    try:
+        codes = []
+        if invoice and invoice.line_items.exists():
+            codes.extend([li.code for li in invoice.line_items.all() if getattr(li, 'code', None)])
+        for link in order.invoice_links.all():
+            inv = getattr(link, 'invoice', None)
+            if inv and inv.line_items.exists():
+                codes.extend([li.code for li in inv.line_items.all() if getattr(li, 'code', None)])
+        if codes:
+            from tracker.views_invoice_upload import _get_item_code_categories
+            line_item_categories = _get_item_code_categories(codes)
+    except Exception:
+        line_item_categories = {}
+
     context = {
         "order": order,
         "invoice": invoice,
         "selected_services": selected_services,
         "time_metrics": time_metrics,
         "available_invoices": available_invoices,
+        "line_item_categories": line_item_categories,
     }
     return render(request, "tracker/order_detail.html", context)
 
@@ -3467,73 +3491,7 @@ def complete_order(request: HttpRequest, pk: int):
         from .utils import adjust_inventory
         adjust_inventory(o.item_name, o.brand, (o.quantity or 0))
 
-    # Auto-embed signature into already uploaded attachments (PDF/images)
-    try:
-        sig_bytes_for_embed = signature_bytes
-        if sig_bytes_for_embed is None and sig:
-            try:
-                sig.seek(0)
-                sig_bytes_for_embed = sig.read()
-            except Exception:
-                sig_bytes_for_embed = None
-        if sig_bytes_for_embed is None and o.signature_file:
-            try:
-                o.signature_file.open('rb')
-                sig_bytes_for_embed = o.signature_file.read()
-            except Exception:
-                sig_bytes_for_embed = None
-            finally:
-                try:
-                    o.signature_file.close()
-                except Exception:
-                    pass
-        signed_created = 0
-        if sig_bytes_for_embed:
-            image_exts = {'.jpg','.jpeg','.png','.gif','.webp'}
-            for att_item in o.attachments.all():
-                name = att_item.file.name or ''
-                lower = name.lower()
-                try:
-                    att_item.file.open('rb')
-                    src_bytes = att_item.file.read()
-                except Exception:
-                    continue
-                finally:
-                    try:
-                        att_item.file.close()
-                    except Exception:
-                        pass
-                try:
-                    if lower.endswith('.pdf'):
-                        if ('job' in lower and 'card' in lower) or is_job_card:
-                            out_bytes = embed_signature_in_pdf(src_bytes, sig_bytes_for_embed, preset='job_card')
-                        else:
-                            out_bytes = embed_signature_in_pdf(src_bytes, sig_bytes_for_embed)
-                        out_name = build_signed_filename(name)
-                    elif any(lower.endswith(ext) for ext in image_exts):
-                        if ('job' in lower and 'card' in lower) or is_job_card:
-                            out_bytes = embed_signature_in_image(src_bytes, sig_bytes_for_embed, preset='job_card')
-                        else:
-                            out_bytes = embed_signature_in_image(src_bytes, sig_bytes_for_embed)
-                        out_name = build_signed_name(name)
-                    else:
-                        continue
-                    OrderAttachment.objects.create(
-                        order=o,
-                        file=ContentFile(out_bytes, name=out_name),
-                        uploaded_by=request.user,
-                        title=(att_item.title or att_item.filename()) + " (Signed)"
-                    )
-                    signed_created += 1
-                except Exception:
-                    continue
-        if signed_created:
-            try:
-                add_audit_log(request.user, 'attachments_signed', f"Signed {signed_created} attachment(s) for order {o.order_number}")
-            except Exception:
-                pass
-    except Exception:
-        pass
+    # Supporting attachments are independent; do not auto-embed signature into them during completion
 
     o.save()
     try:

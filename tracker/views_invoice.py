@@ -345,6 +345,10 @@ def api_upload_extract_invoice(request):
         inv.branch = user_branch
         inv.order = order
         inv.customer = customer_obj
+        try:
+            inv.vehicle = vehicle or (order.vehicle if order and getattr(order, 'vehicle', None) else None)
+        except Exception:
+            inv.vehicle = vehicle
 
         # Parse invoice date
         inv.invoice_date = None
@@ -537,8 +541,13 @@ def api_upload_extract_invoice(request):
             return out
 
         aggregated = _aggregate_items(items) if items else []
-        # Create line items without triggering per-item save() to avoid recalculating invoice totals
+        # Replace previous items if reusing an existing invoice, then create new ones
         try:
+            try:
+                if inv and getattr(inv, 'id', None):
+                    InvoiceLineItem.objects.filter(invoice=inv).delete()
+            except Exception:
+                pass
             to_create = []
             for it in aggregated:
                 qty = Decimal(str(it.get('qty') or '1'))

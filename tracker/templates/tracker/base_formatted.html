@@ -19,15 +19,17 @@
     <title>{% block title %}POS Tracker{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
     
-    <!-- Google font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <!-- Local font fallback (works offline) -->
+    <style>
+        /* Prefer Montserrat if available locally or system fallbacks when offline */
+        :root { --app-font-stack: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        html, body { font-family: var(--app-font-stack); }
+    </style>
+
     <!-- Vendor CSS -->
     <link rel="stylesheet" href="{% static 'assets/css/font-awesome.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/vendors/icofont.css' %}">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/themify-icons@1.0.1/css/themify-icons.css">
+    <link rel="stylesheet" href="{% static 'assets/css/vendors/themify.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/vendors/flag-icon.css' %}">
     <link rel="stylesheet" href="{% static 'assets/css/vendors/feather-icon.css' %}">
     
@@ -70,6 +72,7 @@
 </head>
 
 <body>
+
     <!-- loader starts-->
     <div class="loader-wrapper">
         <div class="loader">
@@ -170,15 +173,17 @@
                         
                      
                         
+
+
                         <!-- Dark Mode Toggle -->
                         <li>
                             <div class="mode">
                                 <i class="moon" data-feather="moon"></i>
                             </div>
                         </li>
-                        
-                    
-                        
+
+
+
                         <!-- Profile -->
                         <li class="profile-nav onhover-dropdown">
                             <div class="media profile-media">
@@ -267,6 +272,8 @@
                                         <h6>Pinned</h6>
                                     </div>
                                 </li>
+
+
                                 <li class="sidebar-list">
                                     <i class="fa fa-thumb-tack"></i>
                                     <a class="sidebar-link sidebar-title" href="{% url 'tracker:dashboard' %}">
@@ -276,6 +283,9 @@
                                         <span>Dashboard</span>
                                     </a>
                                 </li>
+
+                            
+
                                 
                                 <!-- Customers -->
                                 <li class="sidebar-list">
@@ -304,7 +314,6 @@
                                     </a>
                                     <ul class="sidebar-submenu">
                                         <li><a href="{% url 'tracker:orders_list' %}">All Orders</a></li>
-                                        <li><a href="{% url 'tracker:overrun_reports' %}">Overrun Reports</a></li>
                                         <li><a href="{% url 'tracker:inquiries' %}">Inquiries</a></li>
                                     </ul>
                                 </li>
@@ -337,9 +346,9 @@
                                         <span>Analytics</span>
                                     </a>
                                     <ul class="sidebar-submenu">
-                                        <li><a href="{% url 'tracker:analytics' %}">Overview</a></li>
+        
                                      
-                                        <li><a href="{% url 'tracker:analytics_service' %}">Service Analytics</a></li>
+                                    
                                     
                                     </ul>
                                 </li>
@@ -354,29 +363,8 @@
                                         <span>Reports</span>
                                     </a>
                                     <ul class="sidebar-submenu">
-                                        <li><a href="{% url 'tracker:reports' %}"> Reports Overview</a></li>
+                                   
 
-                                    </ul>
-                                </li>
-
-                                <!-- Invoices -->
-                                <li class="sidebar-list">
-                                    <i class="fa fa-file-invoice"></i>
-                                    <a class="sidebar-link sidebar-title" href="#">
-                                        <svg class="stroke-icon">
-                                            <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-file"></use>
-                                        </svg>
-                                        <span>Invoices</span>
-                                    </a>
-                                    <ul class="sidebar-submenu">
-                                        <li><a href="{% url 'tracker:invoice_list' %}">All Invoices</a></li>
-                                        <li><a href="{% url 'tracker:invoice_upload' %}">Upload Invoice</a></li>
-                                        <li>
-                                          <div class="p-2">
-                                            <small class="text-muted">Recent Invoices</small>
-                                            <ul class="list-unstyled mb-0" id="recentInvoicesList"></ul>
-                                          </div>
-                                        </li>
                                     </ul>
                                 </li>
 
@@ -389,6 +377,21 @@
                                         </svg>
                                         <span>Vehicle Tracking</span>
                                     </a>
+                                </li>
+
+                                <!-- Labour Codes -->
+                                <li class="sidebar-list">
+                                    <i class="fa fa-thumb-tack"></i>
+                                    <a class="sidebar-link sidebar-title" href="#">
+                                        <svg class="stroke-icon">
+                                            <use href="{% static 'assets/svg/icon-sprite.svg' %}#stroke-table"></use>
+                                        </svg>
+                                        <span>Labour Codes</span>
+                                    </a>
+                                    <ul class="sidebar-submenu">
+                                        <li><a href="{% url 'tracker:labour_codes_list' %}">All Labour Codes</a></li>
+                                        <li><a href="{% url 'tracker:labour_codes_import' %}">Import / Add</a></li>
+                                    </ul>
                                 </li>
 
                                 <!-- System -->
@@ -442,6 +445,8 @@
     <script src="{% static 'assets/js/scrollbar/simplebar.js' %}"></script>
     <script src="{% static 'assets/js/scrollbar/custom.js' %}"></script>
     <script src="{% static 'assets/js/config.js' %}"></script>
+    <!-- CSRF Helper - Load early so other scripts can use it -->
+    <script src="{% static 'js/csrf_helper.js' %}"></script>
     <script src="{% static 'assets/js/sidebar-menu.js' %}"></script>
     <script src="{% static 'assets/js/sidebar-pin.js' %}"></script>
     <script src="{% static 'assets/js/slick/slick.min.js' %}"></script>
@@ -471,6 +476,7 @@
       });
     </script>
 
+    
     <!-- Notification initialization -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -483,14 +489,46 @@
         });
     </script>
 
+    <script>
+        // Provide lightweight no-op stubs for optional external chart libraries when offline
+        if (typeof window.echarts === 'undefined') {
+            window.echarts = {
+                init: function() {
+                    return {
+                        setOption: function() {},
+                        resize: function() {},
+                        off: function() {},
+                        on: function() {},
+                        dispose: function() {}
+                    };
+                }
+            };
+        }
+        if (typeof window.Chart === 'undefined') {
+            window.Chart = function() {
+                return { destroy: function() {}, update: function() {} };
+            };
+        }
+    </script>
+
+    <!-- Order Storage Utility -->
+    <script src="{% static 'js/order_storage.js' %}"></script>
+
     {% block extra_js %}{% endblock %}
-    
+
+    <!-- Data Mismatch Handler Modal -->
+    {% include 'tracker/partials/data_mismatch_handler.html' %}
+
+
+    <!-- Start Order Modal -->
+    {% include 'tracker/partials/start_order_modal.html' %}
+
     <!-- Footer -->
     <footer class="footer py-3 mt-4" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">
         <div class="container-fluid">
             <div class="row">
                 <div class="col-12 text-center">
-                    <span class="text-muted">superdoll ��� Generated by superdoll.innovation Team</span>
+                    <span class="text-muted">superdoll — Generated by superdoll.innovation Team</span>
                 </div>
             </div>
         </div>

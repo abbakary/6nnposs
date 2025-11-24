@@ -12,16 +12,26 @@
         padding-right: 1.5rem;
     }
     
-    /* KPI Cards improvements */
+    /* KPI Cards improvements - Equal sizing for all cards */
     .kpi-card {
         transition: all 0.3s ease;
         border-radius: 12px;
         overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
     }
     
     .kpi-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .kpi-card .card-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
     
     .dashboard-icon {
@@ -32,6 +42,7 @@
         align-items: center;
         justify-content: center;
         font-size: 24px;
+        flex-shrink: 0;
     }
     
     .bg-success-light {
@@ -52,6 +63,23 @@
     .bg-primary-light {
         background-color: rgba(0, 123, 255, 0.1);
         color: #007bff;
+    }
+    
+    /* Revenue KPI specific styles */
+    .kpi-gross-month {
+        border-left: 4px solid #17a2b8;
+    }
+
+    .kpi-gross-total {
+        border-left: 4px solid #28a745;
+    }
+
+    .kpi-avg-invoice {
+        border-left: 4px solid #ffc107;
+    }
+
+    .kpi-invoice-count {
+        border-left: 4px solid #dc3545;
     }
     
     /* Chart improvements */
@@ -162,6 +190,19 @@
         font-weight: 600;
     }
     
+    /* Revenue KPIs - Equal sizing */
+    .revenue-kpi .card-body {
+        padding: 1.5rem;
+    }
+    
+    .kpi-icon-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        flex-shrink: 0;
+    }
+    
     /* Responsive adjustments */
     @media (max-width: 768px) {
         .container-fluid {
@@ -179,6 +220,16 @@
             width: 100%;
             justify-content: space-between;
         }
+        
+        .dashboard-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+        }
+        
+        .kpi-icon-wrapper i {
+            font-size: 2rem !important;
+        }
     }
 </style>
 {% endblock %}
@@ -188,7 +239,7 @@
     <div class="page-title">
         <div class="row">
             <div class="col-6">
-                <h4>POS Tracker Dashboard</h4>
+                <h4>Serive Centre -HQ Dashboard</h4>
             </div>
             <div class="col-6">
                 <ol class="breadcrumb">
@@ -206,140 +257,159 @@
     </div>
 </div>
 
-<!-- Quick Order Start Section -->
-
-
-<!-- Revenue KPIs - Gross Revenue Analysis -->
+<!-- Main KPIs Section -->
 <div class="container-fluid mb-4">
-  <div class="row g-3">
-    <!-- Gross Revenue This Month -->
-    <div class="col-xxl-3 col-sm-6">
-      <div class="card kpi-card h-100 shadow-sm border-0 kpi-gross-month">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="flex-grow-1">
-              <h6 class="card-title mb-2 text-muted fw-semibold">
-                <i class="fa fa-calendar-alt me-2 text-info"></i>Gross Revenue This Month
-              </h6>
-              <h3 class="fw-bold mb-1 text-dark">{{ gross_revenue_this_month|default:0|floatformat:2|intcomma }} TSH</h3>
-              <small class="text-muted d-block">
-                <i class="fa fa-file-invoice me-1"></i>{{ invoices_this_month_count }} invoice{% if invoices_this_month_count != 1 %}s{% endif %}
-              </small>
+    <div class="row g-3">
+        <!-- Total Customers -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-success-light">
+                            <i data-feather="users"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">TOTAL CUSTOMERS</h6>
+                            <h3 class="f-w-600 mb-0">{{ total_customers|default:0 }}</h3>
+                            <p class="mb-0 text-muted">{{ new_customers_this_month|default:0 }} new this month</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="kpi-icon-wrapper">
-              <i class="fa fa-money-bill-wave fa-3x text-info opacity-20"></i>
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Total Gross Revenue -->
-    <div class="col-xxl-3 col-sm-6">
-      <div class="card kpi-card h-100 shadow-sm border-0 kpi-gross-total">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="flex-grow-1">
-              <h6 class="card-title mb-2 text-muted fw-semibold">
-                <i class="fa fa-chart-line me-2 text-success"></i>Total Gross Revenue
-              </h6>
-              <h3 class="fw-bold mb-1 text-dark">{{ total_gross_revenue|default:0|floatformat:2|intcomma }} TSH</h3>
-              <small class="text-muted d-block">
-                <i class="fa fa-history me-1"></i>All-time total
-              </small>
+        <!-- Total Orders -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-warning-light">
+                            <i data-feather="shopping-bag"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">TOTAL ORDERS</h6>
+                            <h3 class="f-w-600 mb-0">{{ total_orders|default:0 }}</h3>
+                            <p class="mb-0 text-muted">{{ completed_orders|default:0 }} completed ({{ completion_rate|floatformat:0 }}%)</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="kpi-icon-wrapper">
-              <i class="fa fa-chart-pie fa-3x text-success opacity-20"></i>
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Average Invoice Amount -->
-    <div class="col-xxl-3 col-sm-6">
-      <div class="card kpi-card h-100 shadow-sm border-0 kpi-avg-invoice">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="flex-grow-1">
-              <h6 class="card-title mb-2 text-muted fw-semibold">
-                <i class="fa fa-calculator me-2 text-warning"></i>Average Invoice Amount
-              </h6>
-              <h3 class="fw-bold mb-1 text-dark">{{ avg_invoice_amount|default:0|floatformat:2|intcomma }} TSH</h3>
-              <small class="text-muted d-block">
-                <i class="fa fa-balance-scale me-1"></i>Average per invoice
-              </small>
+        <!-- Completed Today -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-info-light">
+                            <i data-feather="check-circle"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">Completed Today</h6>
+                            <h3 class="f-w-600 mb-0">{{ completed_today|default:0 }}</h3>
+                            <p class="mb-0 text-muted">as of {{ current_time|date:"H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="kpi-icon-wrapper">
-              <i class="fa fa-percentage fa-3x text-warning opacity-20"></i>
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Number of Invoices This Month -->
-    <div class="col-xxl-3 col-sm-6">
-      <div class="card kpi-card h-100 shadow-sm border-0 kpi-invoice-count">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="flex-grow-1">
-              <h6 class="card-title mb-2 text-muted fw-semibold">
-                <i class="fa fa-file me-2 text-danger"></i>Invoices This Month
-              </h6>
-              <h3 class="fw-bold mb-1 text-dark">{{ invoices_this_month_count|default:0 }}</h3>
-              <small class="text-muted d-block">
-                <i class="fa fa-check-circle me-1"></i>Total documents processed
-              </small>
+        <!-- New Orders -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-primary-light">
+                            <i data-feather="clock"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">New Orders</h6>
+                            <h3 class="f-w-600 mb-0">{{ new_orders_today|default:0 }}</h3>
+                            <p class="mb-0 text-muted">created today</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="kpi-icon-wrapper">
-              <i class="fa fa-file-invoice fa-3x text-danger opacity-20"></i>
-            </div>
-          </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
 
-<style>
-  .kpi-card {
-    transition: all 0.3s ease;
-    border-radius: 0.75rem;
-  }
+<!-- Revenue KPIs Section - Now with equal sizing -->
+<div class="container-fluid mb-4">
+    <div class="row g-3">
+        <!-- Gross Revenue This Month -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0 kpi-gross-month revenue-kpi">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-info-light">
+                            <i class="fa fa-calendar-alt"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">Gross Revenue This Month</h6>
+                            <h3 class="f-w-600 mb-0">{{ gross_revenue_this_month|default:0|floatformat:2|intcomma }} TSH</h3>
+                            <p class="mb-0 text-muted">{{ invoices_this_month_count }} invoice{% if invoices_this_month_count != 1 %}s{% endif %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-  .kpi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.15) !important;
-  }
+        <!-- Total Gross Revenue -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0 kpi-gross-total revenue-kpi">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-success-light">
+                            <i class="fa fa-chart-line"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">Total Gross Revenue</h6>
+                            <h3 class="f-w-600 mb-0">{{ total_gross_revenue|default:0|floatformat:2|intcomma }} TSH</h3>
+                            <p class="mb-0 text-muted">All-time total</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-  .kpi-card .card-body {
-    padding: 1.5rem;
-  }
+        <!-- Average Invoice Amount -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0 kpi-avg-invoice revenue-kpi">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-warning-light">
+                            <i class="fa fa-calculator"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">Average Invoice Amount</h6>
+                            <h3 class="f-w-600 mb-0">{{ avg_invoice_amount|default:0|floatformat:2|intcomma }} TSH</h3>
+                            <p class="mb-0 text-muted">Average per invoice</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-  .kpi-icon-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.5rem;
-  }
-
-  .kpi-gross-month {
-    border-left: 4px solid #17a2b8;
-  }
-
-  .kpi-gross-total {
-    border-left: 4px solid #28a745;
-  }
-
-  .kpi-avg-invoice {
-    border-left: 4px solid #ffc107;
-  }
-
-  .kpi-invoice-count {
-    border-left: 4px solid #dc3545;
-  }
-</style>
+        <!-- Number of Invoices This Month -->
+        <div class="col-xxl-3 col-sm-6">
+            <div class="card kpi-card h-100 shadow-sm border-0 kpi-invoice-count revenue-kpi">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="dashboard-icon bg-primary-light">
+                            <i class="fa fa-file"></i>
+                        </div>
+                        <div class="ms-3 flex-grow-1">
+                            <h6 class="mb-1">Invoices This Month</h6>
+                            <h3 class="f-w-600 mb-0">{{ invoices_this_month_count|default:0 }}</h3>
+                            <p class="mb-0 text-muted">Total documents processed</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Show revenue by branch for TSHS -->
 <div class="container-fluid mb-3">
@@ -407,81 +477,6 @@
 
 <!-- Container-fluid starts -->
 <div class="container-fluid">
-    <!-- First Row: Key Performance Indicators -->
-    <div class="row g-3">
-        <!-- Total Customers -->
-        <div class="col-xxl-3 col-sm-6">
-            <div class="card kpi-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="dashboard-icon bg-success-light">
-                            <i data-feather="users"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="mb-1">TOTAL CUSTOMERS</h6>
-                            <h3 class="f-w-600 mb-0">{{ total_customers|default:0 }}</h3>
-                            <p class="mb-0 text-muted">{{ new_customers_this_month|default:0 }} new this month</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Total Orders -->
-        <div class="col-xxl-3 col-sm-6">
-            <div class="card kpi-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="dashboard-icon bg-warning-light">
-                            <i data-feather="shopping-bag"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="mb-1">TOTAL ORDERS</h6>
-                            <h3 class="f-w-600 mb-0">{{ total_orders|default:0 }}</h3>
-                            <p class="mb-0 text-muted">{{ completed_orders|default:0 }} completed ({{ completion_rate|floatformat:0 }}%)</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Completed Today -->
-        <div class="col-xxl-3 col-sm-6">
-            <div class="card kpi-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="dashboard-icon bg-info-light">
-                            <i data-feather="check-circle"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="mb-1">Completed Today</h6>
-                            <h3 class="f-w-600 mb-0">{{ completed_today|default:0 }}</h3>
-                            <p class="mb-0 text-muted">as of {{ current_time|date:"H:i" }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- New Orders -->
-        <div class="col-xxl-3 col-sm-6">
-            <div class="card kpi-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="dashboard-icon bg-primary-light">
-                            <i data-feather="clock"></i>
-                        </div>
-                        <div class="ms-3">
-                            <h6 class="mb-1">New Orders</h6>
-                            <h3 class="f-w-600 mb-0">{{ new_orders_today|default:0 }}</h3>
-                            <p class="mb-0 text-muted">created today</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Second Row: Charts -->
     <div class="row g-3 mt-2">
         <!-- Service Distribution -->

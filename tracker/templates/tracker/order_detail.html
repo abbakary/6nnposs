@@ -545,7 +545,17 @@
                         </td>
                         <td class="col-line-item-type" style="text-align: center;">
                           {% if item.code %}
-                            <small class="text-muted">{% if item.item_type == 'service' %}<span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span>{% elif item.item_type == 'product' %}<span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Product</span>{% else %}<span class="badge bg-secondary">-</span>{% endif %}</small>
+                            {% with cat=line_item_categories|dict_get:item.code %}
+                              {% if cat and cat.order_type == 'labour' %}
+                                <small class="text-muted"><span class="badge bg-info"><i class="fa fa-tools me-1"></i>Labour</span></small>
+                              {% elif cat and cat.order_type == 'service' %}
+                                <small class="text-muted"><span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span></small>
+                              {% elif cat and cat.order_type == 'sales' %}
+                                <small class="text-muted"><span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Sales</span></small>
+                              {% else %}
+                                <small class="text-muted"><span class="badge bg-secondary">-</span></small>
+                              {% endif %}
+                            {% endwith %}
                           {% else %}
                             <small class="text-muted">-</small>
                           {% endif %}
@@ -612,7 +622,21 @@
                           {% for item in link.invoice.line_items.all %}
                           <tr>
                             <td style="width: 35%;"><small>{{ item.description|default:'-' }}</small></td>
-                            <td style="width: 12%; text-align: center;"><small>{% if item.item_type == 'service' %}<span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span>{% elif item.item_type == 'product' %}<span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Product</span>{% else %}<span class="badge bg-secondary text-white" style="font-size: 0.7rem;">-</span>{% endif %}</small></td>
+                            <td style="width: 12%; text-align: center;">
+                              <small>
+                                {% with cat=line_item_categories|dict_get:item.code %}
+                                  {% if cat and cat.order_type == 'labour' %}
+                                    <span class="badge bg-info"><i class="fa fa-tools me-1"></i>Labour</span>
+                                  {% elif cat and cat.order_type == 'service' %}
+                                    <span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span>
+                                  {% elif cat and cat.order_type == 'sales' %}
+                                    <span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Sales</span>
+                                  {% else %}
+                                    <span class="badge bg-secondary text-white" style="font-size: 0.7rem;">-</span>
+                                  {% endif %}
+                                {% endwith %}
+                              </small>
+                            </td>
                             <td style="width: 10%; text-align: center;"><small>{{ item.quantity }}</small></td>
                             <td style="width: 15%; text-align: right;"><small>{{ item.unit_price|floatformat:2 }}</small></td>
                             <td style="width: 20%; text-align: right;"><small class="fw-semibold">{{ item.line_total|floatformat:2 }}</small></td>
@@ -1116,7 +1140,11 @@
                     <td><small class="text-muted">{{ att.uploaded_at|localtime|date_medium }}</small></td>
                     <td class="text-end action-buttons-compact">
                       <a href="{{ url }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fa fa-eye me-1"></i>View</a>
+                      {% if att.signature %}
+                      <a href="{{ att.signature.signed_file.url }}" download class="btn btn-sm btn-outline-secondary"><i class="fa fa-download me-1"></i>Download Signed</a>
+                      {% else %}
                       <a href="{{ url }}" download class="btn btn-sm btn-outline-secondary"><i class="fa fa-download me-1"></i>Download</a>
+                      {% endif %}
                       {% if order.status == 'completed' and not att.signature and order.type != 'inquiry' %}
                       <button type="button" class="btn btn-sm btn-info supporting-doc-sign-btn" data-file-url="{{ url }}" data-file-name="{{ name }}" data-attachment-id="{{ att.id }}" data-bs-toggle="modal" data-bs-target="#signSupportingDocsModal"><i class="fa fa-pen me-1"></i>Sign</button>
                       {% elif att.signature %}
@@ -1272,37 +1300,13 @@
               <div class="mb-4">
                 <div class="alert alert-primary bg-primary bg-opacity-10 border-primary mb-4">
                   <i class="fa fa-info-circle me-2"></i>
-                  <strong>Select a document to sign:</strong> Choose from existing documents or upload a new one. The selected document will be displayed below.
+                  <strong>Select a document to sign:</strong> Use the completion document or upload a new one. The selected document will be displayed below.
                 </div>
 
-                <!-- Existing Documents -->
-                {% if order.attachments.all or order.completion_attachment %}
+                {% if order.completion_attachment %}
                 <div class="mb-4">
                   <h6 class="text-muted mb-3"><i class="fa fa-file text-success me-1"></i>Available Documents</h6>
                   <div class="document-list-selection">
-                    {% for att in order.attachments.all %}
-                    <div class="document-selection-item mb-2">
-                      <div class="form-check">
-                        <input class="form-check-input doc-selector" type="radio" name="document_choice" id="doc-{{ att.id }}" value="attachment-{{ att.id }}" data-doc-name="{{ att.filename|default:att.file.name }}" data-doc-type="supporting">
-                        <label class="form-check-label w-100 flex-grow-1" for="doc-{{ att.id }}">
-                          <div class="d-flex align-items-center justify-content-between w-100">
-                            <div class="d-flex align-items-center flex-grow-1">
-                              <div class="doc-selector-icon">
-                                <i class="fa fa-file-pdf"></i>
-                              </div>
-                              <div>
-                                <div class="fw-semibold">{{ att.filename|default:att.file.name }}</div>
-                                <small class="text-muted d-block">Uploaded {{ att.uploaded_at|localtime|date:"M j, Y g:i a" }}</small>
-                              </div>
-                            </div>
-                            <span class="badge bg-secondary">Supporting Document</span>
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                    {% endfor %}
-
-                    {% if order.completion_attachment %}
                     <div class="document-selection-item mb-2">
                       <div class="form-check">
                         <input class="form-check-input doc-selector" type="radio" name="document_choice" id="doc-completion" value="completion" data-doc-name="Completion Document" data-doc-type="completion">
@@ -1322,7 +1326,6 @@
                         </label>
                       </div>
                     </div>
-                    {% endif %}
                   </div>
                 </div>
                 {% endif %}
@@ -1981,11 +1984,12 @@
                         <tr style="background-color: #f8f9fa;">
                           <th style="width: 5%; text-align: center;">#</th>
                           <th style="width: 10%;">Code</th>
-                          <th style="width: 40%; word-break: break-word;">Description</th>
+                          <th style="width: 32%; word-break: break-word;">Description</th>
+                          <th style="width: 10%; text-align: center;">Type</th>
                           <th style="width: 10%;">Unit</th>
                           <th style="width: 8%; text-align: center;">Qty</th>
                           <th style="width: 12%; text-align: right;">Unit Price</th>
-                          <th style="width: 15%; text-align: right;">Total</th>
+                          <th style="width: 13%; text-align: right;">Total</th>
                         </tr>
                       </thead>
                       <tbody id="additionalLineItemsBody" class="extracted-line-items-body"></tbody>
@@ -5102,7 +5106,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const supportingDocAttachmentId = document.getElementById('supportingDocAttachmentId');
     const supportingDocSignatureData = document.getElementById('supportingDocSignatureData');
     const signSupportingDocBtn = document.getElementById('footerSignSupportingDoc');
-    const supportingDocSignaturePad = document.getElementById('supportingDocSignaturePad');
+    let supportingDocSignaturePad = document.getElementById('supportingDocSignaturePad');
     const supportingDocContainer = document.getElementById('supportingDocSignContainer');
     const supportingDocPreviewHost = document.getElementById('supportingDocPreviewHost');
     const clearSupportingDocSignBtn = document.getElementById('clearSupportingDocSignatureBtn');
@@ -5125,7 +5129,13 @@ document.addEventListener('DOMContentLoaded', function() {
           supportingDocSelectedName.textContent = this.dataset.docName || 'Selected Document';
           supportingDocSelectedInfo.style.display = 'block';
           displaySupportingDocPreview(this.dataset.docUrl);
-          resetSupportingDocSignature();
+          supportingDocSignaturePad = createSupportingDocSignatureCanvas();
+          if (supportingDocSignaturePad) {
+            supportingDocSignaturePad.style.pointerEvents = 'auto';
+            supportingDocSignaturePad.style.touchAction = 'none';
+            resetSupportingDocSignature();
+            setupSupportingDocCanvasEvents(supportingDocSignaturePad);
+          }
         }
       });
     });
@@ -5174,6 +5184,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const ctx = supportingDocSignaturePad.getContext('2d');
         ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
         ctx.clearRect(0, 0, supportingDocSignaturePad.width, supportingDocSignaturePad.height);
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#000000';
       }
       if (clearSupportingDocSignBtn) clearSupportingDocSignBtn.style.display = 'none';
       if (supportingDocSignaturePreviewSmall) supportingDocSignaturePreviewSmall.style.display = 'none';
@@ -5195,38 +5209,102 @@ document.addEventListener('DOMContentLoaded', function() {
     function setupSupportingDocCanvasEvents(canvas) {
       if (!canvas) return;
 
+      let lastX = 0;
+      let lastY = 0;
+
       canvas.addEventListener('mousedown', (e) => {
         supportingDocDrawing = true;
         supportingDocHasSignature = true;
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * window.devicePixelRatio;
-        const y = (e.clientY - rect.top) * window.devicePixelRatio;
+        const x = (e.clientX - rect.left);
+        const y = (e.clientY - rect.top);
         supportingDocPoints.push({x, y});
-
         const ctx = canvas.getContext('2d');
         ctx.beginPath();
         ctx.moveTo(x, y);
+        lastX = x;
+        lastY = y;
       });
 
       canvas.addEventListener('mousemove', (e) => {
         if (!supportingDocDrawing) return;
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * window.devicePixelRatio;
-        const y = (e.clientY - rect.top) * window.devicePixelRatio;
+        const x = (e.clientX - rect.left);
+        const y = (e.clientY - rect.top);
         supportingDocPoints.push({x, y});
-
         const ctx = canvas.getContext('2d');
-        ctx.lineTo(x, y);
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-
-        drawToSupportingDocPreview(supportingDocPoints[supportingDocPoints.length - 2]?.x || 0, supportingDocPoints[supportingDocPoints.length - 2]?.y || 0, x, y);
+        if (supportingDocPoints.length > 2) {
+          const lastPoint = supportingDocPoints[supportingDocPoints.length - 1];
+          const controlPoint = supportingDocPoints[supportingDocPoints.length - 2];
+          ctx.beginPath();
+          ctx.moveTo(lastX, lastY);
+          ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, lastPoint.x, lastPoint.y);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(lastX, lastY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        }
+        drawToSupportingDocPreview(lastX, lastY, x, y);
+        lastX = x;
+        lastY = y;
       });
 
       canvas.addEventListener('mouseup', () => {
+        if (supportingDocDrawing && supportingDocHasSignature) {
+          if (clearSupportingDocSignBtn) clearSupportingDocSignBtn.style.display = 'inline-block';
+          if (supportingDocSignaturePreviewSmall) supportingDocSignaturePreviewSmall.style.display = 'flex';
+        }
+        supportingDocDrawing = false;
+      });
+
+      // Touch support
+      canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        supportingDocDrawing = true;
+        supportingDocHasSignature = true;
+        const rect = canvas.getBoundingClientRect();
+        const t = e.touches[0];
+        const x = (t.clientX - rect.left);
+        const y = (t.clientY - rect.top);
+        supportingDocPoints.push({x, y});
+        const ctx = canvas.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        lastX = x;
+        lastY = y;
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (!supportingDocDrawing) return;
+        const rect = canvas.getBoundingClientRect();
+        const t = e.touches[0];
+        const x = (t.clientX - rect.left);
+        const y = (t.clientY - rect.top);
+        supportingDocPoints.push({x, y});
+        const ctx = canvas.getContext('2d');
+        if (supportingDocPoints.length > 2) {
+          const lastPoint = supportingDocPoints[supportingDocPoints.length - 1];
+          const controlPoint = supportingDocPoints[supportingDocPoints.length - 2];
+          ctx.beginPath();
+          ctx.moveTo(lastX, lastY);
+          ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, lastPoint.x, lastPoint.y);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(lastX, lastY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        }
+        drawToSupportingDocPreview(lastX, lastY, x, y);
+        lastX = x;
+        lastY = y;
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
         if (supportingDocDrawing && supportingDocHasSignature) {
           if (clearSupportingDocSignBtn) clearSupportingDocSignBtn.style.display = 'inline-block';
           if (supportingDocSignaturePreviewSmall) supportingDocSignaturePreviewSmall.style.display = 'flex';
@@ -5284,8 +5362,17 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
           if (data.success) {
             alert('Document signed successfully!');
-            const modal = bootstrap.Modal.getInstance(document.getElementById('signSupportingDocsModal'));
-            if (modal) modal.hide();
+            const modalEl = document.getElementById('signSupportingDocsModal');
+            try {
+              const modal = (window.bootstrap && window.bootstrap.Modal) ? window.bootstrap.Modal.getInstance(modalEl) : null;
+              if (modal) {
+                modal.hide();
+              } else if (modalEl) {
+                modalEl.classList.remove('show');
+                modalEl.style.display = 'none';
+                modalEl.setAttribute('aria-hidden', 'true');
+              }
+            } catch (e) {}
             location.reload();
           } else {
             alert('Error: ' + (data.error || 'Could not sign document'));
@@ -5305,13 +5392,29 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle supporting document sign button click
     document.querySelectorAll('.supporting-doc-sign-btn').forEach(btn => {
       btn.addEventListener('click', function() {
-        resetSupportingDocSignature();
         supportingDocSignaturePad = createSupportingDocSignatureCanvas();
         if (supportingDocSignaturePad) {
+          supportingDocSignaturePad.style.pointerEvents = 'auto';
+          supportingDocSignaturePad.style.touchAction = 'none';
+          resetSupportingDocSignature();
           setupSupportingDocCanvasEvents(supportingDocSignaturePad);
         }
       });
     });
+
+    // Ensure signature pad is initialized when switching to Signature tab inside the modal
+    const supportingDocSignTab = document.getElementById('supportingDocSignTab');
+    if (supportingDocSignTab) {
+      supportingDocSignTab.addEventListener('shown.bs.tab', function() {
+        supportingDocSignaturePad = createSupportingDocSignatureCanvas();
+        if (supportingDocSignaturePad) {
+          supportingDocSignaturePad.style.pointerEvents = 'auto';
+          supportingDocSignaturePad.style.touchAction = 'none';
+          resetSupportingDocSignature();
+          setupSupportingDocCanvasEvents(supportingDocSignaturePad);
+        }
+      });
+    }
   })();
 
   // Initialize everything when DOM is loaded
@@ -5377,6 +5480,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   function initializeAdditionalInvoiceUpload() {
+    if (window.__additionalInvInit) return;
+    window.__additionalInvInit = true;
     const fileInput = document.getElementById('additionalInvoiceFile');
     const uploadBtn = document.getElementById('additionalUploadBtn');
     const form = document.getElementById('additionalInvoiceForm');
@@ -5407,6 +5512,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     uploadBtn?.addEventListener('click', async function() {
+      if (this.dataset.loading === 'true') return;
       const file = fileInput?.files[0];
       if (!file) {
         uploadError.textContent = 'Please select a PDF file';
@@ -5417,6 +5523,9 @@ document.addEventListener('DOMContentLoaded', function() {
       uploadError.style.display = 'none';
       uploadSuccess.style.display = 'none';
       setProgress(10);
+      this.dataset.loading = 'true';
+      this.disabled = true;
+      fileInput.disabled = true;
 
       const formData = new FormData();
       formData.append('file', file);
@@ -5458,9 +5567,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const header = data.header || {};
         document.getElementById('additionalPreviewInvoiceNumber').textContent = header.invoice_no || '-';
         document.getElementById('additionalPreviewInvoiceDate').textContent = header.date || '-';
-        document.getElementById('additionalPreviewSubtotal').textContent = formatCurrency(header.net_value || 0);
-        document.getElementById('additionalPreviewTax').textContent = formatCurrency(header.vat || 0);
-        document.getElementById('additionalPreviewTotal').textContent = formatCurrency(header.gross_value || 0);
+        document.getElementById('additionalPreviewSubtotal').textContent = formatCurrency(header.subtotal || 0);
+        document.getElementById('additionalPreviewTax').textContent = formatCurrency(header.tax || 0);
+        document.getElementById('additionalPreviewTotal').textContent = formatCurrency(header.total || 0);
 
         // Populate line items
         const items = data.items || [];
@@ -5472,10 +5581,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
           items.forEach((item, idx) => {
             const row = document.createElement('tr');
+            const typeBadge = (function(){
+              const ot = String(item.order_type||'sales');
+              if (ot === 'labour') return '<span class="badge bg-info"><i class="fa fa-tools me-1"></i>Labour</span>';
+              if (ot === 'service') return '<span class="badge bg-primary"><i class="fa fa-wrench me-1"></i>Service</span>';
+              return '<span class="badge bg-success"><i class="fa fa-shopping-cart me-1"></i>Sales</span>';
+            })();
             row.innerHTML = `
               <td style="text-align: center;"><small>${idx + 1}</small></td>
               <td><small><code>${item.code || '-'}</code></small></td>
               <td><small>${item.description || '-'}</small></td>
+              <td style="text-align:center;"><small>${typeBadge}</small></td>
               <td><small>${item.unit || '-'}</small></td>
               <td style="text-align: center;"><small>${item.qty || 0}</small></td>
               <td style="text-align: right;"><small>${formatCurrency(item.rate || 0)}</small></td>
@@ -5489,6 +5605,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Store extracted data in hidden fields
         hiddenFieldsDiv.innerHTML = '';
+        const computedVatRate = (function(){
+          const s = Number(header.subtotal || 0);
+          const t = Number(header.tax || 0);
+          if (s > 0 && t >= 0) {
+            return Number(((t / s) * 100).toFixed(2));
+          }
+          return 0;
+        })();
+
         const fields = {
           'invoice_number': header.invoice_no,
           'invoice_date': header.date,
@@ -5498,10 +5623,10 @@ document.addEventListener('DOMContentLoaded', function() {
           'phone': header.phone,
           'email': header.email,
           'address': header.address,
-          'subtotal': header.net_value,
-          'tax_amount': header.vat,
-          'tax_rate': 0,
-          'total_amount': header.gross_value
+          'subtotal': header.subtotal,
+          'tax_amount': header.tax,
+          'tax_rate': computedVatRate,
+          'total_amount': header.total
         };
 
         Object.keys(fields).forEach(key => {
@@ -5514,27 +5639,54 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         });
 
+        items.forEach((item, idx) => {
+          const pairs = [
+            { name: 'item_code[]', value: item.code || '' },
+            { name: 'item_description[]', value: item.description || '' },
+            { name: 'item_unit[]', value: item.unit || '' },
+            { name: 'item_qty[]', value: item.qty || 0 },
+            { name: 'item_price[]', value: item.rate || 0 },
+            { name: 'item_value[]', value: item.value || 0 },
+          ];
+          pairs.forEach(p => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = p.name;
+            input.value = p.value;
+            input.dataset.itemIndex = idx;
+            hiddenFieldsDiv.appendChild(input);
+          });
+        });
+
         // Enable submit button
         submitBtn.disabled = false;
         setProgress(0);
-
+        this.dataset.loading = 'false';
+        this.disabled = false;
+        fileInput.disabled = false;
       } catch (error) {
         console.error('Error uploading invoice:', error);
         uploadError.textContent = 'Error uploading invoice: ' + error.message;
         uploadError.style.display = 'block';
         setProgress(0);
+        this.dataset.loading = 'false';
+        this.disabled = false;
+        fileInput.disabled = false;
       }
     });
 
     // Handle form submission
     form?.addEventListener('submit', async function(e) {
       e.preventDefault();
+      if (form.dataset.submitting === 'true') return;
 
       const selectedOrderId = form.querySelector('input[name="selected_order_id"]').value;
       const customerId = form.querySelector('input[name="customer_id"]')?.value;
 
       const formData = new FormData(form);
       formData.append('commit', 'true');
+      form.dataset.submitting = 'true';
+      submitBtn.disabled = true;
 
       try {
         const response = await fetch(form.action, {
@@ -5568,11 +5720,15 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
           uploadError.textContent = data.message || 'Failed to create invoice';
           uploadError.style.display = 'block';
+          form.dataset.submitting = 'false';
+          submitBtn.disabled = false;
         }
       } catch (error) {
         console.error('Error submitting form:', error);
         uploadError.textContent = 'Error: ' + error.message;
         uploadError.style.display = 'block';
+        form.dataset.submitting = 'false';
+        submitBtn.disabled = false;
       }
     });
   }

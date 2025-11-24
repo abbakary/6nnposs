@@ -707,6 +707,7 @@ document.addEventListener('DOMContentLoaded', function() {
 /* Enhanced Priority Badges */
 .bg-orange {
   background-color: #ff6b35 !important;
+  color: white !important;
 }
 
 .bg-purple {
@@ -939,89 +940,147 @@ td.text-end:last-child {
     }
 }
 
-/* Order Type Badge Styling - Improved Colors and Visibility */
+/* Order Type Badge Styling - HIGH CONTRAST, SOLID COLORS */
 .order-type-mixed {
-    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-    color: white;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    box-shadow: 0 2px 4px rgba(124, 58, 237, 0.3);
+    background-color: #7c3aed; /* purple-600 */
+    color: #ffffff !important;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.35);
+    border: 1px solid #6d28d9;
 }
 
 .order-type-mixed:hover {
-    background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+    background-color: #6d28d9; /* purple-700 */
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(124, 58, 237, 0.4);
+    box-shadow: 0 4px 10px rgba(124, 58, 237, 0.45);
 }
 
 .order-type-service {
-    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-    color: white;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+    background-color: #2563eb; /* blue-600 */
+    color: #ffffff !important;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+    border: 1px solid #1d4ed8;
 }
 
 .order-type-service:hover {
-    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+    background-color: #1d4ed8; /* blue-700 */
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.45);
 }
 
 .order-type-sales {
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-    color: white;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.3);
+    background-color: #10b981; /* emerald-500 */
+    color: #ffffff !important;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+    border: 1px solid #059669;
 }
 
 .order-type-sales:hover {
-    background: linear-gradient(135deg, #047857 0%, #059669 100%);
+    background-color: #059669; /* emerald-600 */
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(5, 150, 105, 0.4);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.45);
 }
 
 .order-type-labour {
-    background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
-    color: white;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    box-shadow: 0 2px 4px rgba(8, 145, 178, 0.3);
+    background-color: #0891b2; /* cyan-600 */
+    color: #ffffff !important;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 6px rgba(8, 145, 178, 0.35);
+    border: 1px solid #0e7490;
 }
 
 .order-type-labour:hover {
-    background: linear-gradient(135deg, #0e7490 0%, #0891b2 100%);
+    background-color: #0e7490; /* cyan-700 */
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(8, 145, 178, 0.4);
+    box-shadow: 0 4px 10px rgba(8, 145, 178, 0.45);
 }
 
 .order-type-inquiry {
-    background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
-    color: white;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    box-shadow: 0 2px 4px rgba(217, 119, 6, 0.3);
+    background-color: #f59e0b; /* amber-500 */
+    color: #1f2937 !important; /* slate-800 for readability */
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35);
+    border: 1px solid #d97706;
 }
 
 .order-type-inquiry:hover {
-    background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+    background-color: #d97706; /* amber-600 */
     text-decoration: none;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(217, 119, 6, 0.4);
+    box-shadow: 0 4px 10px rgba(245, 158, 11, 0.45);
+}
+
+/* Status badges - ensure good contrast */
+.bg-secondary {
+    background-color: #6c757d !important;
+    color: white !important;
+}
+
+.bg-warning {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+}
+
+.bg-danger {
+    background-color: #dc3545 !important;
+    color: white !important;
+}
+
+.bg-success {
+    background-color: #198754 !important;
+    color: white !important;
+}
+
+.bg-dark {
+    background-color: #212529 !important;
+    color: white !important;
+}
+
+.bg-light {
+    background-color: #f8f9fa !important;
+    color: #212529 !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+/* Ensure all badges have proper contrast */
+.badge {
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* Table row hover effects */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-hover tbody tr:hover .badge {
+    transform: scale(1.05);
+    transition: transform 0.2s ease;
+}
+
+/* Ensure icons inside order type badges are visible */
+.badge[class*="order-type-"] i {
+    color: currentColor !important;
 }
 </style>

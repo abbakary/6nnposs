@@ -7,6 +7,7 @@ with analytics, charts, and detailed invoice/order information.
 import logging
 import json
 from collections import defaultdict
+import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.db.models import Count, Sum, Q, F, DecimalField
@@ -143,15 +144,31 @@ def api_vehicle_tracking_data(request):
 
         logger.info(f"Processing {vehicles_query.count()} vehicles from query")
 
+        def _plate_from_reference(ref: str):
+            if not ref:
+                return None
+            s = str(ref).strip().upper()
+            if s.startswith('FOR '):
+                s = s[4:].strip()
+            elif s.startswith('FOR'):
+                s = s[3:].strip()
+            if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', s) or \
+               re.match(r'^[A-Z]{1,3}\d{3,4}$', s) or \
+               re.match(r'^\d{1,4}[A-Z]{2,3}$', s) or \
+               re.match(r'^[A-Z]\s*\d{1,4}\s*[A-Z]{2,3}$', s):
+                return s.replace('-', '').replace(' ', '')
+            return None
+
         for vehicle in vehicles_query:
-            # Get all invoices for this vehicle in the date range
-            invoices = vehicle.invoices.filter(
+            inv_qs = vehicle.invoices.filter(
                 invoice_date__range=[start_date, end_date]
             )
-            
             if user_branch:
-                invoices = invoices.filter(branch=user_branch)
-            
+                inv_qs = inv_qs.filter(branch=user_branch)
+            filtered_invoices = [inv for inv in inv_qs if _plate_from_reference(inv.reference)]
+            if not filtered_invoices:
+                continue
+
             # Get all orders for this vehicle in the date range (any type: service, sales, labour, mixed, inquiry)
             orders = vehicle.orders.filter(
                 created_at__date__range=[start_date, end_date]
@@ -196,12 +213,12 @@ def api_vehicle_tracking_data(request):
             # Combine orders from both sources for iteration
             all_orders = orders.union(order_links_via_invoices).order_by('-created_at')
 
-            if not invoices.exists() and not all_orders.exists():
+            if not filtered_invoices and not all_orders.exists():
                 continue
 
             # Calculate vehicle metrics
-            total_spent = invoices.aggregate(total=Sum('total_amount'))['total'] or Decimal('0')
-            invoice_count = invoices.count()
+            total_spent = sum((inv.total_amount or Decimal('0')) for inv in filtered_invoices) if filtered_invoices else Decimal('0')
+            invoice_count = len(filtered_invoices)
 
             # Get order types and categories from all orders
             # Note: vehicles are identified by plate number from invoice reference field,
@@ -224,7 +241,7 @@ def api_vehicle_tracking_data(request):
             
             # Get invoice data with line items
             invoice_list = []
-            for invoice in invoices:
+            for invoice in filtered_invoices:
                 line_items = InvoiceLineItem.objects.filter(invoice=invoice)
 
                 # Get categories for line items
@@ -276,17 +293,29 @@ def api_vehicle_tracking_data(request):
                 elif status_filter == 'pending' and order_stats.get('pending', 0) == 0:
                     continue
             
-            # Apply order type filter
-            if order_type_filter != 'all':
-                if order_type_filter not in order_types:
-                    continue
+            # Do not exclude vehicles by order type; vehicles are identified by plate from invoice reference
             
             # Determine if returning vehicle (multiple visits/invoices)
             is_returning = invoice_count > 1
-            
+
+            # Prefer plate from the most recent invoice reference
+            recent_plate = None
+            try:
+                if filtered_invoices:
+                    try:
+                        recent_invoice = max(
+                            filtered_invoices,
+                            key=lambda inv: inv.invoice_date or datetime.min
+                        )
+                    except Exception:
+                        recent_invoice = filtered_invoices[0]
+                    recent_plate = _plate_from_reference(recent_invoice.reference)
+            except Exception:
+                recent_plate = None
+
             vehicle_dict = {
                 'id': vehicle.id,
-                'plate_number': vehicle.plate_number,
+                'plate_number': recent_plate,
                 'make': vehicle.make or '',
                 'model': vehicle.model or '',
                 'vehicle_type': vehicle.vehicle_type or '',

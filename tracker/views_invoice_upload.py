@@ -7,6 +7,8 @@ import json
 import logging
 import re
 from decimal import Decimal
+import time
+from django.db.utils import OperationalError
 from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -251,12 +253,35 @@ def api_create_invoice_from_upload(request):
     """
     user_branch = get_user_branch(request.user)
 
+    # Precompute order type detection before transaction
+    item_codes_pre = request.POST.getlist('item_code[]')
+    item_codes_pre = [code.strip() for code in item_codes_pre if code and code.strip()]
+    detected_order_type = None
+    categories = []
+    mapping_info = {}
+    for _ in range(3):
+        try:
+            from tracker.utils.order_type_detector import determine_order_type_from_codes
+            detected_order_type, categories, mapping_info = determine_order_type_from_codes(item_codes_pre)
+            break
+        except OperationalError as e:
+            if 'database is locked' in str(e).lower():
+                time.sleep(0.2)
+                continue
+            else:
+                detected_order_type, categories, mapping_info = 'sales', [], {'mapped': {}, 'unmapped': item_codes_pre, 'categories_found': [], 'order_types_found': []}
+                break
+        except Exception:
+            detected_order_type, categories, mapping_info = 'sales', [], {'mapped': {}, 'unmapped': item_codes_pre, 'categories_found': [], 'order_types_found': []}
+            break
+
     try:
         with transaction.atomic():
             # Priority 1: Use pre-selected customer (from started order detail page)
             # This prevents creating duplicate customers when uploading invoice for known customer
             customer_id = request.POST.get('pre_selected_customer_id') or request.POST.get('customer_id')
             customer_obj = None
+            created = False
 
             customer_name = request.POST.get('customer_name', '').strip()
             customer_phone = request.POST.get('customer_phone', '').strip()
@@ -451,7 +476,8 @@ def api_create_invoice_from_upload(request):
                     # Typical format: 2-3 letters + 3-4 digits (e.g., ABC123, T123ABC)
                     if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', cleaned_ref) or \
                        re.match(r'^[A-Z]{1,3}\d{3,4}$', cleaned_ref) or \
-                       re.match(r'^\d{1,4}[A-Z]{2,3}$', cleaned_ref):
+                       re.match(r'^\d{1,4}[A-Z]{2,3}$', cleaned_ref) or \
+                       re.match(r'^[A-Z]\s*\d{1,4}\s*[A-Z]{2,3}$', cleaned_ref):
                         plate = cleaned_ref.replace('-', '').replace(' ', '')
                         logger.info(f"Extracted vehicle plate from reference field: {plate} (original: {reference})")
 
@@ -505,13 +531,6 @@ def api_create_invoice_from_upload(request):
                 except Exception as e:
                     logger.warning(f"Failed to auto-match order by plate number: {e}")
 
-            # Extract item codes for order type detection
-            item_codes = request.POST.getlist('item_code[]')
-            item_codes = [code.strip() for code in item_codes if code and code.strip()]
-
-            # Determine order type from item codes
-            from tracker.utils.order_type_detector import determine_order_type_from_codes
-            detected_order_type, categories, mapping_info = determine_order_type_from_codes(item_codes)
             logger.info(f"Detected order type from codes: {detected_order_type}, categories: {categories}")
 
             # If no existing order, create new one with detected type
@@ -539,11 +558,31 @@ def api_create_invoice_from_upload(request):
                 if vehicle and order.vehicle_id != vehicle.id:
                     order.vehicle = vehicle
                     logger.info(f"Updated order {order.id} vehicle to {vehicle.id}")
-                order.save(update_fields=['customer', 'vehicle'] if vehicle else ['customer'])
+                # Retry save on SQLite lock
+                for _ in range(3):
+                    try:
+                        order.save(update_fields=['customer', 'vehicle'] if vehicle else ['customer'])
+                        break
+                    except OperationalError as e:
+                        if 'database is locked' in str(e).lower():
+                            time.sleep(0.2)
+                            continue
+                        else:
+                            raise
             
-            # Create or reuse invoice (enforce one invoice per order)
+            # Create or reuse invoice (enforce one invoice per order unless additional)
+            inv_link_reason = (request.POST.get('invoice_link_reason') or '').strip()
+            is_additional = bool(inv_link_reason)
+            posted_inv_number = (request.POST.get('invoice_number') or '').strip()
             inv = None
-            if order:
+            # IMPORTANT: For additional invoices, always create a NEW internal invoice record
+            # Do NOT reuse by posted external invoice number to avoid overwriting/merging
+            if not is_additional and posted_inv_number:
+                try:
+                    inv = Invoice.objects.filter(invoice_number=posted_inv_number).first()
+                except Exception:
+                    inv = None
+            if not inv and order and not is_additional:
                 try:
                     inv = Invoice.objects.filter(order=order).first()
                 except Exception:
@@ -553,7 +592,11 @@ def api_create_invoice_from_upload(request):
             inv.branch = order.branch if order and getattr(order, 'branch', None) else user_branch
             inv.order = order
             inv.customer = customer_obj
-            inv.vehicle = vehicle  # Link invoice to vehicle for tracking
+            try:
+                linked_vehicle = vehicle or (order.vehicle if order and getattr(order, 'vehicle', None) else None)
+            except Exception:
+                linked_vehicle = vehicle
+            inv.vehicle = linked_vehicle
 
             # Parse invoice date
             invoice_date_str = request.POST.get('invoice_date', '')
@@ -565,6 +608,39 @@ def api_create_invoice_from_upload(request):
             # Set invoice fields
             inv.code_no = request.POST.get('code_no', '').strip() or None
             inv.reference = request.POST.get('reference', '').strip() or None
+
+            if not inv.vehicle and inv.reference:
+                try:
+                    _s = str(inv.reference).strip().upper()
+                    if _s.startswith('FOR '):
+                        _s = _s[4:].strip()
+                    elif _s.startswith('FOR'):
+                        _s = _s[3:].strip()
+                    if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', _s) or \
+                       re.match(r'^[A-Z]{1,3}\d{3,4}$', _s) or \
+                       re.match(r'^\d{1,4}[A-Z]{2,3}$', _s) or \
+                       re.match(r'^[A-Z]\s*\d{1,4}\s*[A-Z]{2,3}$', _s):
+                        _plate = _s.replace('-', '').replace(' ', '')
+                        try:
+                            _veh = VehicleService.create_or_get_vehicle(customer=customer_obj, plate_number=_plate)
+                        except Exception:
+                            _veh = None
+                        if _veh:
+                            inv.vehicle = _veh
+                            if order and not order.vehicle_id:
+                                order.vehicle = _veh
+                                for _ in range(3):
+                                    try:
+                                        order.save(update_fields=['vehicle'])
+                                        break
+                                    except OperationalError as e:
+                                        if 'database is locked' in str(e).lower():
+                                            time.sleep(0.2)
+                                            continue
+                                        else:
+                                            raise
+                except Exception:
+                    pass
 
             # Collect all notes/remarks
             notes_parts = []
@@ -600,15 +676,34 @@ def api_create_invoice_from_upload(request):
             subtotal = _dec(request.POST.get('subtotal') or request.POST.get('net_value'))
             tax_amount = _dec(request.POST.get('tax_amount') or request.POST.get('tax') or request.POST.get('vat'))
             total_amount = _dec(request.POST.get('total_amount') or request.POST.get('total') or request.POST.get('gross_value'))
+            tax_rate = _dec(request.POST.get('tax_rate'))
 
             inv.subtotal = subtotal
             inv.tax_amount = tax_amount
+            inv.tax_rate = tax_rate
             inv.total_amount = total_amount or (subtotal + tax_amount)
             inv.created_by = request.user
 
             if not getattr(inv, 'invoice_number', None):
-                inv.generate_invoice_number()
-            inv.save()
+                # For additional invoices, always generate a unique internal invoice number
+                if is_additional:
+                    inv.generate_invoice_number()
+                else:
+                    # Use posted invoice number if present for primary flow
+                    if posted_inv_number:
+                        inv.invoice_number = posted_inv_number
+                    else:
+                        inv.generate_invoice_number()
+            for _ in range(3):
+                try:
+                    inv.save()
+                    break
+                except OperationalError as e:
+                    if 'database is locked' in str(e).lower():
+                        time.sleep(0.2)
+                        continue
+                    else:
+                        raise
 
             # Save uploaded document if provided (optional in two-step flow)
             try:
@@ -637,6 +732,13 @@ def api_create_invoice_from_upload(request):
 
             # Create line items directly from extracted data (no aggregation to preserve extracted values)
             try:
+                # If we are reusing an existing invoice for this order, replace previous items
+                try:
+                    if inv and getattr(inv, 'id', None) and not is_additional:
+                        from tracker.models import InvoiceLineItem as _InvItem
+                        _InvItem.objects.filter(invoice=inv).delete()
+                except Exception:
+                    pass
                 to_create = []
                 for idx, desc in enumerate(item_descriptions):
                     if not desc or not desc.strip():
@@ -683,15 +785,30 @@ def api_create_invoice_from_upload(request):
                         continue
 
                 if to_create:
-                    InvoiceLineItem.objects.bulk_create(to_create)
-                    logger.info(f"Created {len(to_create)} line items from extracted data with preserved values")
+                    for _ in range(3):
+                        try:
+                            InvoiceLineItem.objects.bulk_create(to_create)
+                            logger.info(f"Created {len(to_create)} line items from extracted data with preserved values")
+                            break
+                        except OperationalError as e:
+                            if 'database is locked' in str(e).lower():
+                                time.sleep(0.2)
+                                continue
+                            else:
+                                raise
             except Exception as e:
                 logger.warning(f"Failed to bulk create line items: {e}")
 
             # IMPORTANT: Preserve extracted Net, VAT, Gross values for uploaded invoices
-            inv.subtotal = subtotal
-            inv.tax_amount = tax_amount
-            inv.total_amount = total_amount or (subtotal + tax_amount)
+            # If extracted totals are missing/zero but we have line items, compute from items
+            try:
+                has_items = inv.line_items.exists()
+            except Exception:
+                has_items = False
+            if (inv.subtotal is None or inv.subtotal == Decimal('0')) and has_items:
+                inv.calculate_totals()
+            elif (inv.total_amount is None or inv.total_amount == Decimal('0')) and has_items:
+                inv.calculate_totals()
             inv.save(update_fields=['subtotal', 'tax_amount', 'total_amount'])
 
             # Update order with detected order type and mixed categories
@@ -700,7 +817,16 @@ def api_create_invoice_from_upload(request):
                     order.type = detected_order_type
                     if detected_order_type == 'mixed' and categories:
                         order.mixed_categories = json.dumps(categories)
-                    order.save(update_fields=['type', 'mixed_categories'])
+                    for _ in range(3):
+                        try:
+                            order.save(update_fields=['type', 'mixed_categories'])
+                            break
+                        except OperationalError as e:
+                            if 'database is locked' in str(e).lower():
+                                time.sleep(0.2)
+                                continue
+                            else:
+                                raise
                     logger.info(f"Updated order {order.id} type to {detected_order_type}, categories: {categories}")
                 except Exception as e:
                     logger.warning(f"Failed to update order type from detected items: {e}")
@@ -750,29 +876,20 @@ def api_create_invoice_from_upload(request):
                     logger.warning(f"Failed to create or get payment record: {e}")
             
             # Create OrderInvoiceLink if a reason is provided for additional invoice
-            invoice_link_reason = request.POST.get('invoice_link_reason', '').strip()
+            invoice_link_reason = inv_link_reason
             if invoice_link_reason and order:
                 try:
                     from .models import OrderInvoiceLink
-                    # Check if this is an additional invoice (not the first one for the order)
-                    linked_invoices_count = OrderInvoiceLink.objects.filter(order=order).count()
-                    is_additional = linked_invoices_count > 0 or Order.objects.filter(
-                        id=order.id,
-                        invoices__isnull=False
-                    ).exclude(invoices__id=inv.id).exists()
-
-                    if is_additional:
-                        # Create link for additional invoice
-                        OrderInvoiceLink.objects.get_or_create(
-                            order=order,
-                            invoice=inv,
-                            defaults={
-                                'reason': invoice_link_reason,
-                                'linked_by': request.user,
-                                'is_primary': False
-                            }
-                        )
-                        logger.info(f"Linked additional invoice {inv.id} to order {order.id} with reason: {invoice_link_reason}")
+                    OrderInvoiceLink.objects.get_or_create(
+                        order=order,
+                        invoice=inv,
+                        defaults={
+                            'reason': invoice_link_reason,
+                            'linked_by': request.user,
+                            'is_primary': False
+                        }
+                    )
+                    logger.info(f"Linked additional invoice {inv.id} to order {order.id} with reason: {invoice_link_reason}")
                 except Exception as e:
                     logger.warning(f"Failed to create OrderInvoiceLink for additional invoice: {e}")
 
