@@ -266,6 +266,7 @@ def api_extract_invoice_preview(request):
 
 @login_required
 @require_http_methods(["POST"])
+@retry_on_db_lock(max_retries=3, initial_delay=0.5)
 def api_create_invoice_from_upload(request):
     """
     Step 2: Create/update customer, order, and invoice from extracted invoice data.
