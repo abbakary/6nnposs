@@ -508,14 +508,25 @@
         const existingSection = document.getElementById('existingCustomerSection');
         const newSection = document.getElementById('newCustomerSection');
 
+        // Helper function to get CSRF token
+        function getCSRFToken() {
+            return document.querySelector('[name="csrfmiddlewaretoken"]')?.value ||
+                   document.querySelector('meta[name="csrf-token"]')?.content || '';
+        }
+
         // Load customers for dropdown
         if (customerSelect) {
             fetch('/tracker/api/customers/list/', {
+                method: 'GET',
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCSRFToken()
                 }
             })
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
             .then(data => {
                 if (data.success && data.customers && data.customers.length > 0) {
                     data.customers.forEach(c => {
@@ -524,12 +535,16 @@
                         option.textContent = `${c.full_name}${c.phone ? ' (' + c.phone + ')' : ''}`;
                         customerSelect.appendChild(option);
                     });
-                } else if (data.success && data.customers && data.customers.length === 0) {
+                    console.log(`Loaded ${data.customers.length} customers`);
+                } else if (data.success && (!data.customers || data.customers.length === 0)) {
                     const option = document.createElement('option');
                     option.value = '';
-                    option.textContent = '-- No customers available --';
+                    option.textContent = '-- No customers available -- (Create New instead)';
                     option.disabled = true;
                     customerSelect.appendChild(option);
+                    console.warn('No customers found');
+                } else {
+                    throw new Error(data.message || 'Unexpected response format');
                 }
             })
             .catch(e => {
