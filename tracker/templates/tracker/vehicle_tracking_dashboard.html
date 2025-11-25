@@ -712,7 +712,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         </thead>
                         <tbody>
                             ${invoice.line_items.map(item => {
-                                // Format quantity to remove unnecessary decimals
                                 const formatQty = (qty) => {
                                     const num = parseFloat(qty);
                                     return Number.isInteger(num) ? num.toString() : num.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
@@ -727,7 +726,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <td style="text-align: right;"><strong>${formatCurrency(item.total)}</strong></td>
                                     <td style="text-align: right;">${formatCurrency(item.tax_amount)}</td>
                                 </tr>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </tbody>
                     </table>
                     <div style="margin-top: 10px; font-size: 0.9rem; text-align: right; border-top: 1px solid #eee; padding-top: 10px;">
