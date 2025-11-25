@@ -8,6 +8,7 @@ import logging
 import re
 from decimal import Decimal
 import time
+from functools import wraps
 from django.db.utils import OperationalError
 from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
@@ -23,6 +24,57 @@ from .utils import get_user_branch
 from .services import OrderService, CustomerService, VehicleService
 
 logger = logging.getLogger(__name__)
+
+
+def retry_on_db_lock(max_retries=3, initial_delay=0.1):
+    """
+    Decorator to retry a view function on database lock errors.
+    This helps with SQLite concurrency issues by properly handling transaction rollback.
+
+    Args:
+        max_retries: Number of times to retry on database lock
+        initial_delay: Initial delay in seconds before first retry
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+            from django.db import connection
+
+            last_error = None
+            delay = initial_delay
+
+            for attempt in range(max_retries):
+                try:
+                    return func(request, *args, **kwargs)
+                except (OperationalError, transaction.TransactionManagementError) as e:
+                    error_msg = str(e).lower()
+                    # Retry on database lock errors or broken transaction errors
+                    if 'database is locked' in error_msg or 'current transaction' in error_msg or 'broken' in error_msg:
+                        last_error = e
+
+                        # Ensure transaction is properly cleaned up
+                        try:
+                            transaction.rollback()
+                            connection.close()
+                        except Exception as cleanup_err:
+                            logger.warning(f"Error during transaction cleanup: {cleanup_err}")
+
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Database lock detected (attempt {attempt + 1}/{max_retries}), retrying after {delay}s...")
+                            time.sleep(delay)
+                            delay *= 2  # Exponential backoff
+                            continue
+                    raise
+
+            # All retries failed
+            logger.error(f"Failed after {max_retries} retries: {last_error}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Database temporarily unavailable. Please try again in a moment.'
+            }, status=503)
+
+        return wrapper
+    return decorator
 
 
 def _get_item_code_categories(item_codes):
@@ -214,6 +266,7 @@ def api_extract_invoice_preview(request):
 
 @login_required
 @require_http_methods(["POST"])
+@retry_on_db_lock(max_retries=3, initial_delay=0.5)
 def api_create_invoice_from_upload(request):
     """
     Step 2: Create/update customer, order, and invoice from extracted invoice data.
@@ -558,17 +611,8 @@ def api_create_invoice_from_upload(request):
                 if vehicle and order.vehicle_id != vehicle.id:
                     order.vehicle = vehicle
                     logger.info(f"Updated order {order.id} vehicle to {vehicle.id}")
-                # Retry save on SQLite lock
-                for _ in range(3):
-                    try:
-                        order.save(update_fields=['customer', 'vehicle'] if vehicle else ['customer'])
-                        break
-                    except OperationalError as e:
-                        if 'database is locked' in str(e).lower():
-                            time.sleep(0.2)
-                            continue
-                        else:
-                            raise
+                # Save order (function-level retry will handle database locks)
+                order.save(update_fields=['customer', 'vehicle'] if vehicle else ['customer'])
             
             # Create or reuse invoice (enforce one invoice per order unless additional)
             inv_link_reason = (request.POST.get('invoice_link_reason') or '').strip()
@@ -603,17 +647,8 @@ def api_create_invoice_from_upload(request):
             if linked_vehicle and order and not order.vehicle_id:
                 order.vehicle = linked_vehicle
                 logger.info(f"Updated order {order.id} vehicle to {linked_vehicle.id} from invoice vehicle")
-                # Save the order with updated vehicle
-                for _ in range(3):
-                    try:
-                        order.save(update_fields=['vehicle'])
-                        break
-                    except OperationalError as e:
-                        if 'database is locked' in str(e).lower():
-                            time.sleep(0.2)
-                            continue
-                        else:
-                            raise
+                # Save the order with updated vehicle (function-level retry will handle locks)
+                order.save(update_fields=['vehicle'])
 
             # Parse invoice date
             invoice_date_str = request.POST.get('invoice_date', '')
@@ -646,16 +681,8 @@ def api_create_invoice_from_upload(request):
                             inv.vehicle = _veh
                             if order and not order.vehicle_id:
                                 order.vehicle = _veh
-                                for _ in range(3):
-                                    try:
-                                        order.save(update_fields=['vehicle'])
-                                        break
-                                    except OperationalError as e:
-                                        if 'database is locked' in str(e).lower():
-                                            time.sleep(0.2)
-                                            continue
-                                        else:
-                                            raise
+                                # Save order with vehicle (function-level retry will handle locks)
+                                order.save(update_fields=['vehicle'])
                 except Exception:
                     pass
 
@@ -711,16 +738,9 @@ def api_create_invoice_from_upload(request):
                         inv.invoice_number = posted_inv_number
                     else:
                         inv.generate_invoice_number()
-            for _ in range(3):
-                try:
-                    inv.save()
-                    break
-                except OperationalError as e:
-                    if 'database is locked' in str(e).lower():
-                        time.sleep(0.2)
-                        continue
-                    else:
-                        raise
+
+            # Save invoice (function-level retry will handle database locks)
+            inv.save()
 
             # Save uploaded document if provided (optional in two-step flow)
             try:
@@ -802,17 +822,8 @@ def api_create_invoice_from_upload(request):
                         continue
 
                 if to_create:
-                    for _ in range(3):
-                        try:
-                            InvoiceLineItem.objects.bulk_create(to_create)
-                            logger.info(f"Created {len(to_create)} line items from extracted data with preserved values")
-                            break
-                        except OperationalError as e:
-                            if 'database is locked' in str(e).lower():
-                                time.sleep(0.2)
-                                continue
-                            else:
-                                raise
+                    InvoiceLineItem.objects.bulk_create(to_create)
+                    logger.info(f"Created {len(to_create)} line items from extracted data with preserved values")
             except Exception as e:
                 logger.warning(f"Failed to bulk create line items: {e}")
 
@@ -834,16 +845,7 @@ def api_create_invoice_from_upload(request):
                     order.type = detected_order_type
                     if detected_order_type == 'mixed' and categories:
                         order.mixed_categories = json.dumps(categories)
-                    for _ in range(3):
-                        try:
-                            order.save(update_fields=['type', 'mixed_categories'])
-                            break
-                        except OperationalError as e:
-                            if 'database is locked' in str(e).lower():
-                                time.sleep(0.2)
-                                continue
-                            else:
-                                raise
+                    order.save(update_fields=['type', 'mixed_categories'])
                     logger.info(f"Updated order {order.id} type to {detected_order_type}, categories: {categories}")
                 except Exception as e:
                     logger.warning(f"Failed to update order type from detected items: {e}")

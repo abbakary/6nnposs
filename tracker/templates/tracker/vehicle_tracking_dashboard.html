@@ -332,8 +332,19 @@
 
 {% block content %}
 <div class="dashboard-header">
-    <h1><i class="fa fa-truck me-2"></i>Vehicle Service Tracking Dashboard</h1>
-    <p>Track vehicles for service with daily, weekly, and monthly analytics</p>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1><i class="fa fa-truck me-2"></i>Vehicle Service Tracking Dashboard</h1>
+            <p>Track vehicles for service with daily, weekly, and monthly analytics</p>
+        </div>
+        {% if user.is_superuser %}
+        <div>
+            <button id="seedDataBtn" class="btn btn-outline-light btn-sm" style="display: none;" title="Create sample data for testing">
+                <i class="fa fa-database me-1"></i>Seed Sample Data
+            </button>
+        </div>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Period Selection -->
@@ -481,6 +492,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let trendChart, typeChart, topVehiclesChart;
+
+    // Check diagnostics on load
+    checkDataDiagnostics();
 
     // Initialize filters with defaults if not provided from server
     const serverStartDate = '{{ start_date }}' || '';
@@ -881,7 +895,55 @@ document.addEventListener('DOMContentLoaded', function() {
         // Future: Navigate to detailed vehicle view
         console.log('View details for vehicle:', vehicleId);
     };
-    
+
+    // Diagnostics and seeding functions
+    function checkDataDiagnostics() {
+        fetch('/tracker/api/vehicles/tracking/diagnostics/')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.status === 'warning' && data.counts.invoices === 0) {
+                    // No data exists, show seed button
+                    const seedBtn = document.getElementById('seedDataBtn');
+                    if (seedBtn) {
+                        seedBtn.style.display = 'inline-block';
+                        seedBtn.addEventListener('click', seedSampleData);
+                    }
+                    console.log('No data found. Seed button available.');
+                } else if (data.success) {
+                    console.log('Data diagnostics:', data);
+                }
+            })
+            .catch(e => console.error('Error checking diagnostics:', e));
+    }
+
+    window.seedSampleData = function() {
+        if (!confirm('This will create sample vehicle tracking data. Continue?')) {
+            return;
+        }
+
+        const seedBtn = document.getElementById('seedDataBtn');
+        if (seedBtn) seedBtn.disabled = true;
+
+        fetch('/tracker/api/vehicles/tracking/seed/', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Sample data created successfully! The dashboard will refresh.');
+                    // Reload the dashboard data
+                    setTimeout(loadDashboardData, 500);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(e => {
+                alert('Error seeding data: ' + e.message);
+                console.error('Seed error:', e);
+            })
+            .finally(() => {
+                if (seedBtn) seedBtn.disabled = false;
+            });
+    };
+
     // Load initial data
     loadDashboardData();
 });
