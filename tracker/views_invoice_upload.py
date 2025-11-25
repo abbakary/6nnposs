@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def retry_on_db_lock(max_retries=3, initial_delay=0.1):
     """
     Decorator to retry a view function on database lock errors.
-    This helps with SQLite concurrency issues.
+    This helps with SQLite concurrency issues by properly handling transaction rollback.
 
     Args:
         max_retries: Number of times to retry on database lock
@@ -38,6 +38,8 @@ def retry_on_db_lock(max_retries=3, initial_delay=0.1):
     def decorator(func):
         @wraps(func)
         def wrapper(request, *args, **kwargs):
+            from django.db import connection
+
             last_error = None
             delay = initial_delay
 
@@ -46,9 +48,17 @@ def retry_on_db_lock(max_retries=3, initial_delay=0.1):
                     return func(request, *args, **kwargs)
                 except (OperationalError, transaction.TransactionManagementError) as e:
                     error_msg = str(e).lower()
-                    # Retry on database lock errors
-                    if 'database is locked' in error_msg or 'current transaction' in error_msg:
+                    # Retry on database lock errors or broken transaction errors
+                    if 'database is locked' in error_msg or 'current transaction' in error_msg or 'broken' in error_msg:
                         last_error = e
+
+                        # Ensure transaction is properly cleaned up
+                        try:
+                            transaction.rollback()
+                            connection.close()
+                        except Exception as cleanup_err:
+                            logger.warning(f"Error during transaction cleanup: {cleanup_err}")
+
                         if attempt < max_retries - 1:
                             logger.warning(f"Database lock detected (attempt {attempt + 1}/{max_retries}), retrying after {delay}s...")
                             time.sleep(delay)
@@ -60,8 +70,8 @@ def retry_on_db_lock(max_retries=3, initial_delay=0.1):
             logger.error(f"Failed after {max_retries} retries: {last_error}")
             return JsonResponse({
                 'success': False,
-                'message': 'Database error: Transaction could not be completed. Please try again.'
-            }, status=500)
+                'message': 'Database temporarily unavailable. Please try again in a moment.'
+            }, status=503)
 
         return wrapper
     return decorator
