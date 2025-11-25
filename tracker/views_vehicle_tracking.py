@@ -25,6 +25,24 @@ from .utils import get_user_branch
 logger = logging.getLogger(__name__)
 
 
+def _extract_plate(reference: str) -> str:
+    """Extract vehicle plate from reference string"""
+    if not reference:
+        return None
+    s = str(reference).strip().upper()
+    if s.startswith('FOR '):
+        s = s[4:].strip()
+    elif s.startswith('FOR'):
+        s = s[3:].strip()
+
+    if re.match(r'^[A-Z]{1,3}\s*-?\s*\d{1,4}[A-Z]?$', s) or \
+       re.match(r'^[A-Z]{1,3}\d{3,4}$', s) or \
+       re.match(r'^\d{1,4}[A-Z]{2,3}$', s) or \
+       re.match(r'^[A-Z]\s*\d{1,4}\s*[A-Z]{2,3}$', s):
+        return s.replace('-', '').replace(' ', '')
+    return None
+
+
 @login_required
 def vehicle_tracking_dashboard(request):
     """
