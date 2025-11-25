@@ -711,12 +711,18 @@ document.addEventListener('DOMContentLoaded', function() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${invoice.line_items.map(item => `
+                            ${invoice.line_items.map(item => {
+                                // Format quantity to remove unnecessary decimals
+                                const formatQty = (qty) => {
+                                    const num = parseFloat(qty);
+                                    return Number.isInteger(num) ? num.toString() : num.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+                                };
+                                return `
                                 <tr>
                                     <td><code style="font-size: 0.85rem;">${item.code || '-'}</code></td>
                                     <td style="font-size: 0.9rem;">${item.description}</td>
                                     <td><span class="badge-custom badge-service" style="font-size: 0.75rem;">${item.category}</span></td>
-                                    <td style="text-align: center;">${item.qty}</td>
+                                    <td style="text-align: center;">${formatQty(item.qty)}</td>
                                     <td style="text-align: right;">${formatCurrency(item.unit_price)}</td>
                                     <td style="text-align: right;"><strong>${formatCurrency(item.total)}</strong></td>
                                     <td style="text-align: right;">${formatCurrency(item.tax_amount)}</td>
