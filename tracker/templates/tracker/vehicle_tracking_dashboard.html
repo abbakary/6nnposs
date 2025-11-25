@@ -895,7 +895,55 @@ document.addEventListener('DOMContentLoaded', function() {
         // Future: Navigate to detailed vehicle view
         console.log('View details for vehicle:', vehicleId);
     };
-    
+
+    // Diagnostics and seeding functions
+    function checkDataDiagnostics() {
+        fetch('/tracker/api/vehicles/tracking/diagnostics/')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.status === 'warning' && data.counts.invoices === 0) {
+                    // No data exists, show seed button
+                    const seedBtn = document.getElementById('seedDataBtn');
+                    if (seedBtn) {
+                        seedBtn.style.display = 'inline-block';
+                        seedBtn.addEventListener('click', seedSampleData);
+                    }
+                    console.log('No data found. Seed button available.');
+                } else if (data.success) {
+                    console.log('Data diagnostics:', data);
+                }
+            })
+            .catch(e => console.error('Error checking diagnostics:', e));
+    }
+
+    window.seedSampleData = function() {
+        if (!confirm('This will create sample vehicle tracking data. Continue?')) {
+            return;
+        }
+
+        const seedBtn = document.getElementById('seedDataBtn');
+        if (seedBtn) seedBtn.disabled = true;
+
+        fetch('/tracker/api/vehicles/tracking/seed/', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Sample data created successfully! The dashboard will refresh.');
+                    // Reload the dashboard data
+                    setTimeout(loadDashboardData, 500);
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(e => {
+                alert('Error seeding data: ' + e.message);
+                console.error('Seed error:', e);
+            })
+            .finally(() => {
+                if (seedBtn) seedBtn.disabled = false;
+            });
+    };
+
     // Load initial data
     loadDashboardData();
 });
