@@ -1005,16 +1005,17 @@
           return;
         }
 
-        // Create order with default type 'service' - order type will be determined after invoice extraction
+        // First, check if an order already exists for this plate
         const payload = {
           plate_number: plate,
           order_type: 'service',
           use_existing_customer: true,
-          existing_customer_id: {{ customer.id }}
+          existing_customer_id: {{ customer.id }},
+          force_new_order: false
         };
 
         startBtn.disabled = true;
-        startBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Starting...';
+        startBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Checking...';
 
         fetch('/tracker/api/orders/start/', {
           method: 'POST',
@@ -1022,7 +1023,46 @@
           body: JSON.stringify(payload)
         }).then(r => r.json()).then(data => {
           if (data && data.success) {
-            window.location.reload();
+            if (data.existing_order) {
+              // Existing order found - ask user if they want to continue or start new
+              const choice = confirm('An order for plate ' + plate + ' (Order #' + data.order_number + ') is already started.\n\nClick OK to continue with the existing order, or Cancel to start a new order with this plate.');
+              if (choice) {
+                // Continue with existing order
+                window.location.href = '/tracker/orders/started/' + data.order_id + '/';
+              } else {
+                // Start new order for the same plate
+                const newPayload = {
+                  plate_number: plate,
+                  order_type: 'service',
+                  use_existing_customer: true,
+                  existing_customer_id: {{ customer.id }},
+                  force_new_order: true
+                };
+
+                startBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Creating...';
+
+                fetch('/tracker/api/orders/start/', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRF() },
+                  body: JSON.stringify(newPayload)
+                }).then(r => r.json()).then(newData => {
+                  if (newData && newData.success) {
+                    window.location.reload();
+                  } else {
+                    alert(newData && newData.error ? newData.error : 'Failed to create new order');
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i class="fa fa-play me-1"></i>Start Order';
+                  }
+                }).catch(e => {
+                  alert('Error: ' + (e && e.message ? e.message : e));
+                  startBtn.disabled = false;
+                  startBtn.innerHTML = '<i class="fa fa-play me-1"></i>Start Order';
+                });
+              }
+            } else {
+              // No existing order, proceed to create new order
+              window.location.reload();
+            }
           } else {
             alert(data && data.error ? data.error : 'Failed to start order');
             startBtn.disabled = false;
