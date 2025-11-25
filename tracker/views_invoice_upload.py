@@ -611,17 +611,8 @@ def api_create_invoice_from_upload(request):
                 if vehicle and order.vehicle_id != vehicle.id:
                     order.vehicle = vehicle
                     logger.info(f"Updated order {order.id} vehicle to {vehicle.id}")
-                # Retry save on SQLite lock
-                for _ in range(3):
-                    try:
-                        order.save(update_fields=['customer', 'vehicle'] if vehicle else ['customer'])
-                        break
-                    except OperationalError as e:
-                        if 'database is locked' in str(e).lower():
-                            time.sleep(0.2)
-                            continue
-                        else:
-                            raise
+                # Save order (function-level retry will handle database locks)
+                order.save(update_fields=['customer', 'vehicle'] if vehicle else ['customer'])
             
             # Create or reuse invoice (enforce one invoice per order unless additional)
             inv_link_reason = (request.POST.get('invoice_link_reason') or '').strip()
