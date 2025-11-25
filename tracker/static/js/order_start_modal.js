@@ -452,6 +452,7 @@ class OrderStartModal {
       // Store the customer and vehicle info for order creation
       this.formData.customer_id = this.foundCustomer.id;
       this.formData.use_existing_customer = true;
+      this.formData.force_new_order = true;
 
       // Pre-populate vehicle info
       document.querySelector('input[name="extracted_plate"]').value = this.foundVehicle.plate || '';
