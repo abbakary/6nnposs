@@ -711,17 +711,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             </tr>
                         </thead>
                         <tbody>
-                            ${invoice.line_items.map(item => `
+                            ${invoice.line_items.map(item => {
+                                const formatQty = (qty) => {
+                                    const num = parseFloat(qty);
+                                    return Number.isInteger(num) ? num.toString() : num.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+                                };
+                                return `
                                 <tr>
                                     <td><code style="font-size: 0.85rem;">${item.code || '-'}</code></td>
                                     <td style="font-size: 0.9rem;">${item.description}</td>
                                     <td><span class="badge-custom badge-service" style="font-size: 0.75rem;">${item.category}</span></td>
-                                    <td style="text-align: center;">${item.qty}</td>
+                                    <td style="text-align: center;">${formatQty(item.qty)}</td>
                                     <td style="text-align: right;">${formatCurrency(item.unit_price)}</td>
                                     <td style="text-align: right;"><strong>${formatCurrency(item.total)}</strong></td>
                                     <td style="text-align: right;">${formatCurrency(item.tax_amount)}</td>
                                 </tr>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </tbody>
                     </table>
                     <div style="margin-top: 10px; font-size: 0.9rem; text-align: right; border-top: 1px solid #eee; padding-top: 10px;">
@@ -880,7 +886,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatCurrency(amount) {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: 'USD',
+            currency: 'TZS',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
         }).format(amount);

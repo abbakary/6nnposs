@@ -478,7 +478,7 @@
           <td>{{ item.code|default:item.inventory_item.sku|default:"" }}</td>
           <td><strong>{{ item.description }}</strong></td>
           <td>{{ item.unit|default:item.get_item_type_display }}</td>
-          <td class="text-right">{{ item.quantity }}</td>
+          <td class="text-right">{{ item.quantity|format_qty }}</td>
           <td class="text-right">{{ item.unit|default:"—" }}</td>
           <td class="text-right">{{ item.unit_price|floatformat:2|intcomma }}</td>
           <td class="text-right"><strong>{{ item.line_total|floatformat:2|intcomma }}</strong></td>
